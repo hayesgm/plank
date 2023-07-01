@@ -1,9 +1,48 @@
 module Main exposing (Model, Msg(..), init, main, subscriptions, update, view)
 
 import Browser
-import Helper
 import Html exposing (Html, div, text)
-import Input
+import Game.TicTacToe.Client as TicTacToe
+import Game
+
+import Json.Encode exposing (Value)
+import Json.Decode as Decode
+
+type Msg
+    = GameMsg Value
+
+type alias GameInst =
+    { state : Value
+    , update : Value -> Value -> ( Value, Cmd Msg )
+    , view : Value -> Html Msg
+    , subscriptions : Value -> Sub Msg
+    }
+
+
+initGame : Game.Game state msg -> ( GameInst, Cmd Msg )
+initGame game =
+    let
+        gameMsgWrapper = GameMsg << game.msgEncoder
+        ( initState, initCmd ) = game.init
+        update_ = \msg statePre ->
+            case ( Decode.decodeValue game.msgDecoder msg, Decode.decodeValue game.stateDecoder statePre ) of
+                ( Ok msg_, Ok statePre_ ) ->
+                    let
+                        ( stateNext, cmdNext ) = game.update msg_ statePre_
+                    in
+                        ( game.stateEncoder stateNext, Cmd.map gameMsgWrapper cmdNext )
+                _ ->
+                    ( statePre, Cmd.none )
+
+        view_ = Html.map gameMsgWrapper << game.view << Result.withDefault initState << Decode.decodeValue game.stateDecoder
+        subscriptions_ = Sub.map gameMsgWrapper << game.subscriptions << Result.withDefault initState << Decode.decodeValue game.stateDecoder
+    in
+        ( { state = game.stateEncoder initState
+          , update = update_
+          , view = view_
+          , subscriptions = subscriptions_ }, Cmd.map gameMsgWrapper initCmd )
+
+
 
 main : Program () Model Msg
 main =
@@ -21,69 +60,39 @@ subscriptions model =
 
 
 type alias Model =
-    { name : Input.Model
-    , helper : Helper.Model
+    { game : Maybe GameInst 
     }
 
 
 init : ( Model, Cmd Msg )
 init =
     let
-        -- Omit the Cmd from child's init, because we know that it's Cmd.none
-        ( nameModel, _ ) =
-            Input.init ""
-
-        ( helperModel, _ ) =
-            Helper.init "Shiver Me Timbers"
+        ( game, cmd ) = initGame TicTacToe.game
     in
-    ( Model nameModel helperModel, Cmd.none )
-
-
-type Msg
-    = NameMsg Input.Msg
-    | HelperMsg Helper.Msg
+    ( { game = Just game }, cmd )
 
 
 view : Model -> Html Msg
 view model =
     div []
-        [ text model.name
-        , Html.map NameMsg (Input.view model.name)
-        , Html.map HelperMsg (Helper.view model.helper)
+        [ case model.game of
+            Just game ->
+                game.view game.state
+
+            Nothing ->
+                div [] []
         ]
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        NameMsg childMsg ->
-            case childMsg of
-                {- We have intercepted a message from child module.
-
-                   This part of the update function might be moved
-                   to a separate function for better readability.
-                -}
-                Input.Focus ->
-                    update (HelperMsg Helper.Show) model
-
-                Input.Blur ->
-                    update (HelperMsg Helper.Hide) model
-
-                -- The default message passing routine.
-                _ ->
+        GameMsg childMsg ->
+            case model.game of
+                Just game ->
                     let
-                        ( nameModel, nameCmd ) =
-                            Input.update childMsg model.name
+                        ( stateNext, cmd ) = game.update childMsg game.state
                     in
-                    ( { model | name = nameModel }
-                    , Cmd.map NameMsg nameCmd
-                    )
-
-        HelperMsg childMsg ->
-            let
-                ( helperModel, helperCmd ) =
-                    Helper.update childMsg model.helper
-            in
-            ( { model | helper = helperModel }
-            , Cmd.map HelperMsg helperCmd
-            )
+                        ( { model | game = Just { game | state = stateNext } }, cmd )
+                Nothing ->
+                    ( model, Cmd.none )

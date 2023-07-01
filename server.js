@@ -1,3 +1,5 @@
+import { Elm } from './src/Server.elm'
+
 // Worker
 
 export default {
@@ -31,24 +33,29 @@ export class Counter {
     // same key every request is fast. (That said, you could also store the
     // value in a class member if you prefer.)
     let value = await this.state.storage.get("value") || 0;
+    if (this.game === undefined) {
+      this.game = Elm.Server.init({
+        flags: "Initial Message"
+      });
+
+      this.game.ports.log.subscribe((msg) => {
+        console.log("[Plank][App] " + msg);
+      })
+
+      this.game.ports.giveState.subscribe((state) => {
+        console.log("got state", state);
+      })
+    }
+
+    console.log({game: this.game});
 
     switch (url.pathname) {
     case "/increment":
       ++value;
       break;
     case "/tic-tac-toe":
-      let gameElm = await import('../dist/assets/server-63ae8903.js');
-      console.log(gameElm);
-      console.log(gameElm.init);
-      console.log(Object.entries(gameElm));
-      const game = gameElm.Elm.Server.init({
-        flags: "Initial Message"
-      });
-      console.log({game});
-      game.ports.giveState.subscribe((x) => {
-        console.log({x});
-      })
-      game.ports.receiveAction.send('55');
+    case "/tick":
+      this.game.ports.receiveAction.send({ ping: 55 });
       break;
     case "/decrement":
       --value;

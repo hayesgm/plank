@@ -1,22 +1,59 @@
-module Game.TicTacToe.Client exposing (Model, Msg(..), init, main, subscriptions, update, view)
-
-import Game.TicTacToe.Main exposing (State, init)
+module Game.TicTacToe.Client exposing (Model, Msg(..), game, init, subscriptions, update, view)
 
 import Browser
-import Html exposing (Html, div, text)
-import Html exposing (Html, input)
-import Html.Attributes exposing (type_, value)
-import Html.Events exposing (onBlur, onFocus, onInput)
 import Game exposing (GameMsg(..))
+import Game.TicTacToe.Main exposing (State, init)
+import Html exposing (Html, button, div, input, text)
+import Html.Attributes exposing (type_, value)
+import Html.Events exposing (onBlur, onClick, onFocus, onInput)
+import Json.Decode as Decode exposing (Decoder)
+import Json.Encode as Encode exposing (Value)
 
-main : Program () Model Msg
-main =
-    Browser.element
-        { view = view
-        , init = \() -> init
-        , update = update
-        , subscriptions = subscriptions
-        }
+
+game : Game.Game Model Msg
+game =
+    { view = view
+    , init = init
+    , update = update
+    , subscriptions = subscriptions
+    , msgEncoder = msgEncoder
+    , msgDecoder = msgDecoder
+    , stateEncoder = stateEncoder
+    , stateDecoder = stateDecoder
+    }
+
+
+msgEncoder : Msg -> Value
+msgEncoder msg =
+    case msg of
+        Rename s ->
+            Encode.object [ ( "rename", Encode.string s ) ]
+
+        GameAction action ->
+            Game.TicTacToe.Main.msgEncoder action
+
+
+msgDecoder : Decoder Msg
+msgDecoder =
+    Decode.oneOf
+        [ Decode.map GameAction Game.TicTacToe.Main.msgDecoder
+        , Decode.map Rename (Decode.field "rename" Decode.string)
+        ]
+
+
+stateEncoder : Model -> Value
+stateEncoder model =
+    Encode.object
+        [ ( "state", Game.TicTacToe.Main.stateEncoder model.state )
+        , ( "name", Encode.string model.name )
+        ]
+
+
+stateDecoder : Decoder Model
+stateDecoder =
+    Decode.map2 Model
+        (Decode.field "state" Game.TicTacToe.Main.stateDecoder)
+        (Decode.field "name" Decode.string)
 
 
 subscriptions : Model -> Sub Msg
@@ -32,24 +69,25 @@ type alias Model =
 
 init : ( Model, Cmd Msg )
 init =
-    let ( state, _ ) = Game.TicTacToe.Main.init in
-      ( Model state "tic tac toe", Cmd.none )
+    let
+        ( state, _ ) =
+            Game.TicTacToe.Main.init
+    in
+    ( Model state "tic tac toe", Cmd.none )
 
 
 type Msg
     = Rename String
+    | GameAction Game.TicTacToe.Main.InternalMsg
 
 
 view : Model -> Html Msg
 view model =
     div []
         [ text model.name
-        , input
-          [ type_ "text"
-          , onInput Rename
-          , value model.name
-          ]
-          []
+        , text (String.fromInt model.state.ticks)
+        , text (String.join "," (List.map String.fromInt model.state.pings))
+        , button [ onClick (GameAction (Game.TicTacToe.Main.Ping 5)) ] [ text "Ping" ]
         ]
 
 
@@ -58,3 +96,14 @@ update msg model =
     case msg of
         Rename str ->
             ( { model | name = str }, Cmd.none )
+
+        GameAction action ->
+            let
+                ( state_, gameCmd ) =
+                    Game.TicTacToe.Main.update (Game.PlayerMsg action) model.state
+            in
+            ( { model | state = state_ }, Cmd.none )
+
+
+
+-- TODO: Handle game commands?

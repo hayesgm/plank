@@ -1,5 +1,5 @@
 name = "worker"
-main = "./server/Counter.js"
+main = "./dist/assets/server.js"
 compatibility_date = "2022-09-08"
 
 [durable_objects]
