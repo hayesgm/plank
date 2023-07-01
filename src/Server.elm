@@ -1,11 +1,9 @@
 module Server exposing (Model, Msg(..), init, main, subscriptions, update)
 
 import Action exposing (giveState, receiveAction)
-import Browser
 import Console exposing (log)
 import Game
-import Game.TicTacToe.Main as TicTacToe
-import Html exposing (Html, div, text)
+import Game.TicTacToe.Engine as TicTacToe
 import Json.Decode as Decode
 import Json.Encode exposing (Value)
 import Platform exposing (worker)
@@ -22,7 +20,7 @@ type alias GameInst =
     }
 
 
-initGame : Game.GameServer state msg -> ( GameInst, Cmd Msg )
+initGame : Game.Engine state msg -> ( GameInst, Cmd Msg )
 initGame game =
     let
         gameMsgWrapper =
@@ -83,7 +81,7 @@ init : ( Model, Cmd Msg )
 init =
     let
         ( game, cmd ) =
-            initGame TicTacToe.game
+            initGame TicTacToe.engine
     in
     ( { game = game }, cmd )
 

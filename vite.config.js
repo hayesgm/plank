@@ -9,7 +9,7 @@ export default defineConfig({
       preserveEntrySignatures: 'strict',
       input: {
         index: resolve(__dirname, 'index.html'),
-        server: resolve(__dirname, 'server.js'),
+        server: resolve(__dirname, 'plank-server.js'),
       },
       output: {
         entryFileNames: `assets/[name].js`,
@@ -18,4 +18,7 @@ export default defineConfig({
       }
     },
   },
+  server: {
+    port: '2222'
+  }
 })
