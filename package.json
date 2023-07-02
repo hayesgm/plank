@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev-app": "vite",
+    "dev-server": "vite build && wrangler dev --local",
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "vite build --mode prod && wrangler publish && wrangler pages publish dist/"

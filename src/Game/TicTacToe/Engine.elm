@@ -66,6 +66,39 @@ other p =
             X
 
 
+claimedByPlayer : Player -> Tile -> Bool
+claimedByPlayer player tile =
+    case tile of
+        Taken player_ ->
+            player == player_
+
+        _ ->
+            False
+
+
+checkWinner : List Tile -> Maybe Player
+checkWinner tiles =
+    let
+        sets =
+            rows tiles
+                |> List.append (cols tiles)
+                |> List.append (diags tiles)
+
+        isWinner : Player -> Bool
+        isWinner player =
+            List.any (List.all (claimedByPlayer player)) sets
+    in
+    case ( isWinner X, isWinner O ) of
+        ( True, _ ) ->
+            Just X
+
+        ( _, True ) ->
+            Just O
+
+        _ ->
+            Nothing
+
+
 updateInternal : InternalMsg -> Maybe PlayerId -> State -> ( State, Cmd InternalMsg )
 updateInternal msg maybePlayerId state =
     case msg of
@@ -95,8 +128,8 @@ updateInternal msg maybePlayerId state =
             ( { state | players = newPlayers }, Cmd.none )
 
         Claim x ->
-            case maybePlayerId of
-                Just playerId ->
+            case ( maybePlayerId, state.winner ) of
+                ( Just playerId, Nothing ) ->
                     case Dict.get playerId state.players of
                         Just player ->
                             if state.turn == player then
@@ -106,9 +139,10 @@ updateInternal msg maybePlayerId state =
                                             tiles =
                                                 ListEx.setAt x (Taken player) state.tiles
 
-                                            -- TODO: Check for winner
+                                            maybeWinner =
+                                                checkWinner tiles
                                         in
-                                        ( { state | tiles = tiles, turn = other state.turn }, Cmd.none )
+                                        ( { state | tiles = tiles, turn = other state.turn, winner = maybeWinner }, Cmd.none )
 
                                     _ ->
                                         ( state, Cmd.none )
@@ -119,7 +153,7 @@ updateInternal msg maybePlayerId state =
                         _ ->
                             ( state, Cmd.none )
 
-                Nothing ->
+                _ ->
                     ( state, Cmd.none )
 
 
@@ -243,3 +277,45 @@ msgDecoder =
         [ decodeMatch JoinGame "join-game"
         , Decode.map Claim (Decode.field "claim" Decode.int)
         ]
+
+
+chunk : Int -> List a -> List (List a)
+chunk n l =
+    if List.isEmpty l then
+        []
+
+    else
+        List.take n l :: chunk n (List.drop n l)
+
+
+rows : List Tile -> List (List Tile)
+rows tiles =
+    chunk 3 tiles
+
+
+remap : List a -> List Int -> List a
+remap l mapping =
+    mapping
+        |> List.foldl
+            (\el acc ->
+                case ListEx.getAt el l of
+                    Just x ->
+                        x :: acc
+
+                    _ ->
+                        acc
+            )
+            []
+        |> List.reverse
+
+
+cols : List Tile -> List (List Tile)
+cols tiles =
+    remap tiles [ 0, 3, 6, 1, 4, 7, 2, 5, 8 ]
+        |> chunk 3
+
+
+diags : List Tile -> List (List Tile)
+diags tiles =
+    remap tiles [ 0, 4, 8, 2, 4, 6 ]
+        |> chunk 3

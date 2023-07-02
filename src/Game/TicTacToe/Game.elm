@@ -134,7 +134,13 @@ view model =
     div []
         [ text model.name
         , text (descPlayer model.playerId model.state.players)
-        , div [] (List.indexedMap showTile model.state.tiles)
+        , text (Maybe.map (\winner -> " - " ++ showPlayer winner ++ " wins! 🎊") model.state.winner |> Maybe.withDefault "")
+        , div []
+            (model.state.tiles
+                |> List.indexedMap showTile
+                |> chunk 3
+                |> List.map (div [])
+            )
         ]
 
 
@@ -155,3 +161,12 @@ update msg model =
 setGameState : State -> Model -> Model
 setGameState state model =
     { model | state = state }
+
+
+chunk : Int -> List a -> List (List a)
+chunk n l =
+    if List.isEmpty l then
+        []
+
+    else
+        List.take n l :: chunk n (List.drop n l)
