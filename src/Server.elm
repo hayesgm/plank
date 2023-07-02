@@ -15,19 +15,19 @@ type Msg
 
 type alias GameInst =
     { state : Value
-    , update : Value -> Maybe String -> Value -> Result String ( Value, Cmd Msg )
+    , update : Value -> Maybe String -> Value -> Result String ( Value, Value, Cmd Msg )
     , subscriptions : Value -> Sub Msg
     }
 
 
-initGame : Game.GameName -> ( GameInst, Cmd Msg )
+initGame : Game.GameName -> ( GameInst, Value, Cmd Msg )
 initGame gameName =
     case gameName of
         Game.TicTacToe ->
             initGameInst TicTacToe.engine
 
 
-initGameInst : Game.Engine state msg -> ( GameInst, Cmd Msg )
+initGameInst : Game.Engine state msg -> ( GameInst, Value, Cmd Msg )
 initGameInst game =
     let
         gameMsgWrapper =
@@ -52,7 +52,7 @@ initGameInst game =
                             ( stateNext, cmdNext ) =
                                 game.update gameMsg statePre_
                         in
-                        Ok ( game.stateEncoder stateNext, Cmd.map gameMsgWrapper cmdNext )
+                        Ok ( game.stateEncoder stateNext, game.publicStateEncoder stateNext, Cmd.map gameMsgWrapper cmdNext )
 
                     ( Err msgErr, _ ) ->
                         Err ("Error decoding msg " ++ Decode.errorToString msgErr)
@@ -67,6 +67,7 @@ initGameInst game =
       , update = update_
       , subscriptions = subscriptions_
       }
+    , game.publicStateEncoder initState
     , Cmd.map gameMsgWrapper initCmd
     )
 
@@ -103,10 +104,10 @@ init gameNameStr =
     case Game.gameFromString gameNameStr of
         Just gameName ->
             let
-                ( game, cmd ) =
+                ( game, publicState, cmd ) =
                     initGame gameName
             in
-            ( { game = Just game }, Cmd.batch [ giveState game.state, cmd ] )
+            ( { game = Just game }, Cmd.batch [ giveState publicState, cmd ] )
 
         Nothing ->
             ( { game = Nothing }, Cmd.none )
@@ -119,9 +120,9 @@ update msg model =
             case msg of
                 GameMsg playerId childMsg ->
                     case game.update childMsg playerId game.state of
-                        Ok ( stateNext, cmd ) ->
+                        Ok ( stateNext, publicStateNext, cmd ) ->
                             if game.state /= stateNext then
-                                ( { model | game = Just { game | state = stateNext } }, Cmd.batch [ giveState stateNext, cmd ] )
+                                ( { model | game = Just { game | state = stateNext } }, Cmd.batch [ giveState publicStateNext, cmd ] )
 
                             else
                                 ( model, cmd )

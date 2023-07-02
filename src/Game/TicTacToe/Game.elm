@@ -69,7 +69,7 @@ modelDecoder =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Time.every 1000 Tock
+    Time.every 10000 Tock
 
 
 type alias Model =

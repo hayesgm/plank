@@ -17,12 +17,14 @@ engine =
     , msgDecoder = msgDecoder
     , stateEncoder = stateEncoder
     , stateDecoder = stateDecoder
+    , publicStateEncoder = stateEncoder
+    , publicStateDecoder = stateDecoder
     }
 
 
 subscriptions : State -> Sub InternalMsg
 subscriptions model =
-    Time.every 1000 Tock
+    Time.every 10000 Tock
 
 
 type Player
