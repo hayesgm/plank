@@ -37,15 +37,15 @@ type alias GameInst =
 -- TODO: Test early with a second game type
 
 
-initGame : Game.GameName -> String -> Value -> String -> Result String ( GameInst, Maybe Msg, Cmd Msg )
-initGame gameName gameId gameState playerId =
+initGame : Game.GameName -> String -> Value -> String -> (String -> Game.AssetMapping) -> Result String ( GameInst, Maybe Msg, Cmd Msg )
+initGame gameName gameId gameState playerId assetMapping =
     case gameName of
         Game.TicTacToe ->
-            initGameInst TicTacToe.game gameId gameState playerId
+            initGameInst TicTacToe.game gameName gameId gameState playerId assetMapping
 
 
-initGameInst : Game.Game model state msg -> String -> Value -> String -> Result String ( GameInst, Maybe Msg, Cmd Msg )
-initGameInst game gameId gameState playerId =
+initGameInst : Game.Game model state msg -> Game.GameName -> String -> Value -> String -> (String -> Game.AssetMapping) -> Result String ( GameInst, Maybe Msg, Cmd Msg )
+initGameInst game gameName gameId gameState playerId assetMapping =
     case Decode.decodeValue game.stateDecoder gameState of
         Err err ->
             Err (Decode.errorToString err)
@@ -87,7 +87,7 @@ initGameInst game gameId gameState playerId =
                                 Err ("Error decoding model " ++ Decode.errorToString modelErr)
 
                 view_ =
-                    Html.map gameMsgWrapper << game.view << Result.withDefault initModel << Decode.decodeValue game.modelDecoder
+                    Html.map gameMsgWrapper << game.view (assetMapping (Game.gameReflect gameName)) << Result.withDefault initModel << Decode.decodeValue game.modelDecoder
 
                 subscriptions_ =
                     Sub.map gameMsgWrapper << game.subscriptions << Result.withDefault initModel << Decode.decodeValue game.modelDecoder
@@ -106,11 +106,11 @@ initGameInst game gameId gameState playerId =
                 )
 
 
-main : Program () Model Msg
+main : Program Value Model Msg
 main =
     Browser.element
         { view = view
-        , init = \() -> init
+        , init = init
         , update = update
         , subscriptions = subscriptions
         }
@@ -135,12 +135,22 @@ subscriptions model =
 type alias Model =
     { game : Maybe GameInst
     , joinGameId : String
+    , assetMapping : String -> Game.AssetMapping
     }
 
 
-init : ( Model, Cmd Msg )
-init =
-    ( { game = Nothing, joinGameId = "" }, Cmd.none )
+init : Value -> ( Model, Cmd Msg )
+init assets =
+    let
+        assetMapping =
+            case Decode.decodeValue Game.decodeAssetMapping assets of
+                Ok x ->
+                    x
+
+                Err err ->
+                    \pkg asset -> Nothing
+    in
+    ( { game = Nothing, joinGameId = "", assetMapping = assetMapping }, Cmd.none )
 
 
 view : Model -> Html Msg
@@ -196,7 +206,7 @@ update msg model =
         GameConnected gameInfoVal ->
             case Decode.decodeValue Game.gameInfoDecoder gameInfoVal of
                 Ok gameInfo ->
-                    case initGame gameInfo.gameName gameInfo.gameId gameInfo.gameState gameInfo.playerId of
+                    case initGame gameInfo.gameName gameInfo.gameId gameInfo.gameState gameInfo.playerId model.assetMapping of
                         Ok ( gameInst, maybeMsg, cmd ) ->
                             case maybeMsg of
                                 Just msg_ ->

@@ -1,5 +1,6 @@
 module Game exposing (..)
 
+import Dict exposing (Dict)
 import Html exposing (Html)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
@@ -19,6 +20,13 @@ gameToString gameName =
     case gameName of
         TicTacToe ->
             "tic-tac-toe"
+
+
+gameReflect : GameName -> String
+gameReflect gameName =
+    case gameName of
+        TicTacToe ->
+            "TicTacToe"
 
 
 gameFromString : String -> Maybe GameName
@@ -44,7 +52,7 @@ type GameMsg msg
 type alias Game model state msg =
     { init : PlayerId -> state -> ( model, Maybe msg, Cmd msg )
     , update : msg -> model -> ( model, Cmd msg )
-    , view : model -> Html msg
+    , view : AssetMapping -> model -> Html msg
     , subscriptions : model -> Sub msg
     , msgEncoder : msg -> Value
     , msgDecoder : Decoder msg
@@ -98,3 +106,17 @@ gameInfoDecoder =
         (Decode.field "gameId" Decode.string)
         (Decode.field "gameState" Decode.value)
         (Decode.field "playerId" Decode.string)
+
+
+type alias AssetMapping =
+    String -> Maybe String
+
+
+decodeAssetMapping : Decoder (String -> AssetMapping)
+decodeAssetMapping =
+    Decode.dict Decode.string
+        |> Decode.map
+            (\dict ->
+                \pkg asset ->
+                    Dict.get ("./src/Game/" ++ pkg ++ "/assets/" ++ asset) dict
+            )

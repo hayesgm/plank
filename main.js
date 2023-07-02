@@ -1,9 +1,12 @@
 import './style.css'
 import { Elm } from './src/Main.elm'
 
+const imagesUrl =  import.meta.glob("./src/Game/*/assets/*.(jpg|JPG|png|PNG|svg)", { as: "url", eager: true });
+
 const ssl = import.meta.env.VITE_PLANK_SSL === 'true' ?? false;
 const host = import.meta.env.VITE_PLANK_HOST ?? 'localhost:2233';
 const app = Elm.Main.init({
+  flags: imagesUrl,
   node: document.getElementById('root'),
 });
 

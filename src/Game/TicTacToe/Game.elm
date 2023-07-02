@@ -4,8 +4,8 @@ import Browser
 import Dict exposing (Dict)
 import Game exposing (GameMsg(..), PlayerId)
 import Game.TicTacToe.Engine as Engine exposing (Player(..), State, init)
-import Html exposing (Html, button, div, input, span, text)
-import Html.Attributes exposing (type_, value)
+import Html exposing (Html, button, div, img, input, span, text)
+import Html.Attributes exposing (src, type_, value)
 import Html.Events exposing (onBlur, onClick, onFocus, onInput)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
@@ -130,10 +130,11 @@ descPlayer p players =
             "Spectating"
 
 
-view : Model -> Html Msg
-view model =
+view : Game.AssetMapping -> Model -> Html Msg
+view asset model =
     div []
         [ text "Tic Tac Toe"
+        , img [ src (Maybe.withDefault "" (asset "test.svg")) ] []
         , text (String.fromInt model.time)
         , text (descPlayer model.playerId model.state.players)
         , text (Maybe.map (\winner -> " - " ++ showPlayer winner ++ " wins! 🎊") model.state.winner |> Maybe.withDefault "")
