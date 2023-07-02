@@ -21,13 +21,28 @@ gameToString gameName =
             "tic-tac-toe"
 
 
+gameFromString : String -> Maybe GameName
+gameFromString gameName =
+    case gameName of
+        "tic-tac-toe" ->
+            Just TicTacToe
+
+        _ ->
+            Nothing
+
+
+type alias PlayerId =
+    String
+
+
 type GameMsg msg
-    = PlayerMsg msg
+    = PlayerMsg PlayerId msg
+    | SystemMsg msg
     | Tick
 
 
 type alias Game model state msg =
-    { init : ( model, Cmd msg )
+    { init : PlayerId -> state -> ( model, Maybe msg, Cmd msg )
     , update : msg -> model -> ( model, Cmd msg )
     , view : model -> Html msg
     , subscriptions : model -> Sub msg
@@ -43,7 +58,7 @@ type alias Game model state msg =
 
 type alias Engine state msg =
     { init : ( state, Cmd msg )
-    , update : msg -> state -> ( state, Cmd msg )
+    , update : GameMsg msg -> state -> ( state, Cmd msg )
     , subscriptions : state -> Sub msg
     , msgEncoder : msg -> Value
     , msgDecoder : Decoder msg
@@ -55,6 +70,7 @@ type alias Engine state msg =
 type alias GameInfo =
     { gameName : GameName
     , gameId : String
+    , gameState : Value
     , playerId : String
     }
 
@@ -64,9 +80,9 @@ gameNameDecoder =
     Decode.string
         |> Decode.andThen
             (\n ->
-                case n of
-                    "tic-tac-toe" ->
-                        Decode.succeed TicTacToe
+                case gameFromString n of
+                    Just g ->
+                        Decode.succeed g
 
                     _ ->
                         Decode.fail ("Unknown game " ++ n)
@@ -75,7 +91,8 @@ gameNameDecoder =
 
 gameInfoDecoder : Decoder GameInfo
 gameInfoDecoder =
-    Decode.map3 GameInfo
+    Decode.map4 GameInfo
         (Decode.field "gameName" gameNameDecoder)
         (Decode.field "gameId" Decode.string)
+        (Decode.field "gameState" Decode.value)
         (Decode.field "playerId" Decode.string)

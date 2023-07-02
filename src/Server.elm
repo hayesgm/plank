@@ -2,7 +2,7 @@ module Server exposing (Model, Msg(..), init, main, subscriptions, update)
 
 import Action exposing (giveState, receiveAction)
 import Console exposing (log)
-import Game
+import Game exposing (GameMsg(..))
 import Game.TicTacToe.Engine as TicTacToe
 import Json.Decode as Decode
 import Json.Encode exposing (Value)
@@ -10,32 +10,47 @@ import Platform exposing (worker)
 
 
 type Msg
-    = GameMsg Value
+    = GameMsg (Maybe String) Value
 
 
 type alias GameInst =
     { state : Value
-    , update : Value -> Value -> Result String ( Value, Cmd Msg )
+    , update : Value -> Maybe String -> Value -> Result String ( Value, Cmd Msg )
     , subscriptions : Value -> Sub Msg
     }
 
 
-initGame : Game.Engine state msg -> ( GameInst, Cmd Msg )
-initGame game =
+initGame : Game.GameName -> ( GameInst, Cmd Msg )
+initGame gameName =
+    case gameName of
+        Game.TicTacToe ->
+            initGameInst TicTacToe.engine
+
+
+initGameInst : Game.Engine state msg -> ( GameInst, Cmd Msg )
+initGameInst game =
     let
         gameMsgWrapper =
-            GameMsg << game.msgEncoder
+            GameMsg Nothing << game.msgEncoder
 
         ( initState, initCmd ) =
             game.init
 
         update_ =
-            \msg statePre ->
+            \msg maybePlayerId statePre ->
                 case ( Decode.decodeValue game.msgDecoder msg, Decode.decodeValue game.stateDecoder statePre ) of
                     ( Ok msg_, Ok statePre_ ) ->
                         let
+                            gameMsg =
+                                case maybePlayerId of
+                                    Just playerId ->
+                                        PlayerMsg playerId msg_
+
+                                    Nothing ->
+                                        SystemMsg msg_
+
                             ( stateNext, cmdNext ) =
-                                game.update msg_ statePre_
+                                game.update gameMsg statePre_
                         in
                         Ok ( game.stateEncoder stateNext, Cmd.map gameMsgWrapper cmdNext )
 
@@ -56,10 +71,10 @@ initGame game =
     )
 
 
-main : Program () Model Msg
+main : Program String Model Msg
 main =
     worker
-        { init = \() -> init
+        { init = init
         , update = update
         , subscriptions = subscriptions
         }
@@ -68,31 +83,41 @@ main =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
-        [ receiveAction GameMsg
+        [ receiveAction (\( playerId, action ) -> GameMsg playerId action)
         ]
 
 
 type alias Model =
-    { game : GameInst
+    { game : Maybe GameInst
     }
 
 
-init : ( Model, Cmd Msg )
-init =
-    let
-        ( game, cmd ) =
-            initGame TicTacToe.engine
-    in
-    ( { game = game }, cmd )
+init : String -> ( Model, Cmd Msg )
+init gameNameStr =
+    case Game.gameFromString gameNameStr of
+        Just gameName ->
+            let
+                ( game, cmd ) =
+                    initGame gameName
+            in
+            ( { game = Just game }, Cmd.batch [ giveState game.state, cmd ] )
+
+        Nothing ->
+            ( { game = Nothing }, Cmd.none )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update msg ({ game } as model) =
-    case msg of
-        GameMsg childMsg ->
-            case game.update childMsg game.state of
-                Ok ( stateNext, cmd ) ->
-                    ( { model | game = { game | state = stateNext } }, Cmd.batch [ giveState stateNext, cmd ] )
+update msg model =
+    case model.game of
+        Just game ->
+            case msg of
+                GameMsg playerId childMsg ->
+                    case game.update childMsg playerId game.state of
+                        Ok ( stateNext, cmd ) ->
+                            ( { model | game = Just { game | state = stateNext } }, Cmd.batch [ giveState stateNext, cmd ] )
 
-                Err err ->
-                    ( model, log err )
+                        Err err ->
+                            ( model, log err )
+
+        Nothing ->
+            ( model, Cmd.none )

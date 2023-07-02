@@ -14,7 +14,7 @@ import Json.Encode exposing (Value)
 
 type Msg
     = GameState Value
-    | GameMsg Value
+    | GameMsg (Maybe String) Value
     | NewGame Game.GameName
     | NewGameResp Value
     | GameConnected Value
@@ -37,66 +37,73 @@ type alias GameInst =
 -- TODO: Test early with a second game type
 
 
-initGame : Game.GameName -> String -> String -> ( GameInst, Cmd Msg )
-initGame gameName gameId playerId =
+initGame : Game.GameName -> String -> Value -> String -> Result String ( GameInst, Maybe Msg, Cmd Msg )
+initGame gameName gameId gameState playerId =
     case gameName of
         Game.TicTacToe ->
-            initGameInst TicTacToe.game gameId playerId
+            initGameInst TicTacToe.game gameId gameState playerId
 
 
-initGameInst : Game.Game model state msg -> String -> String -> ( GameInst, Cmd Msg )
-initGameInst game gameId playerId =
-    let
-        gameMsgWrapper =
-            GameMsg << game.msgEncoder
+initGameInst : Game.Game model state msg -> String -> Value -> String -> Result String ( GameInst, Maybe Msg, Cmd Msg )
+initGameInst game gameId gameState playerId =
+    case Decode.decodeValue game.stateDecoder gameState of
+        Err err ->
+            Err (Decode.errorToString err)
 
-        ( initModel, initCmd ) =
-            game.init
+        Ok initState ->
+            let
+                gameMsgWrapper =
+                    GameMsg (Just playerId) << game.msgEncoder
 
-        update_ =
-            \msg modelPre ->
-                case ( Decode.decodeValue game.msgDecoder msg, Decode.decodeValue game.modelDecoder modelPre ) of
-                    ( Ok msg_, Ok modelPre_ ) ->
-                        let
-                            ( modelNext, cmdNext ) =
-                                game.update msg_ modelPre_
-                        in
-                        Ok ( game.modelEncoder modelNext, Cmd.batch [ Cmd.map gameMsgWrapper cmdNext, Action.sendAction msg ] )
+                ( initModel, maybeMsg, initCmd ) =
+                    game.init playerId initState
 
-                    ( Err msgErr, _ ) ->
-                        Err ("Error decoding msg " ++ Decode.errorToString msgErr)
+                update_ =
+                    \msg modelPre ->
+                        case ( Decode.decodeValue game.msgDecoder msg, Decode.decodeValue game.modelDecoder modelPre ) of
+                            ( Ok msg_, Ok modelPre_ ) ->
+                                let
+                                    ( modelNext, cmdNext ) =
+                                        game.update msg_ modelPre_
+                                in
+                                Ok ( game.modelEncoder modelNext, Cmd.batch [ Cmd.map gameMsgWrapper cmdNext, Action.sendAction msg ] )
 
-                    ( _, Err modelErr ) ->
-                        Err ("Error decoding model " ++ Decode.errorToString modelErr)
+                            ( Err msgErr, _ ) ->
+                                Err ("Error decoding msg " ++ Decode.errorToString msgErr)
 
-        setGameState_ =
-            \state modelPre ->
-                case ( Decode.decodeValue game.stateDecoder state, Decode.decodeValue game.modelDecoder modelPre ) of
-                    ( Ok state_, Ok modelPre_ ) ->
-                        Ok (game.modelEncoder (game.setGameState state_ modelPre_))
+                            ( _, Err modelErr ) ->
+                                Err ("Error decoding model " ++ Decode.errorToString modelErr)
 
-                    ( Err stateErr, _ ) ->
-                        Err ("Error decoding state " ++ Decode.errorToString stateErr)
+                setGameState_ =
+                    \state modelPre ->
+                        case ( Decode.decodeValue game.stateDecoder state, Decode.decodeValue game.modelDecoder modelPre ) of
+                            ( Ok state_, Ok modelPre_ ) ->
+                                Ok (game.modelEncoder (game.setGameState state_ modelPre_))
 
-                    ( _, Err modelErr ) ->
-                        Err ("Error decoding model " ++ Decode.errorToString modelErr)
+                            ( Err stateErr, _ ) ->
+                                Err ("Error decoding state " ++ Decode.errorToString stateErr)
 
-        view_ =
-            Html.map gameMsgWrapper << game.view << Result.withDefault initModel << Decode.decodeValue game.modelDecoder
+                            ( _, Err modelErr ) ->
+                                Err ("Error decoding model " ++ Decode.errorToString modelErr)
 
-        subscriptions_ =
-            Sub.map gameMsgWrapper << game.subscriptions << Result.withDefault initModel << Decode.decodeValue game.modelDecoder
-    in
-    ( { model = game.modelEncoder initModel
-      , update = update_
-      , view = view_
-      , subscriptions = subscriptions_
-      , setGameState = setGameState_
-      , gameId = gameId
-      , playerId = playerId
-      }
-    , Cmd.map gameMsgWrapper initCmd
-    )
+                view_ =
+                    Html.map gameMsgWrapper << game.view << Result.withDefault initModel << Decode.decodeValue game.modelDecoder
+
+                subscriptions_ =
+                    Sub.map gameMsgWrapper << game.subscriptions << Result.withDefault initModel << Decode.decodeValue game.modelDecoder
+            in
+            Ok
+                ( { model = game.modelEncoder initModel
+                  , update = update_
+                  , view = view_
+                  , subscriptions = subscriptions_
+                  , setGameState = setGameState_
+                  , gameId = gameId
+                  , playerId = playerId
+                  }
+                , Maybe.map gameMsgWrapper maybeMsg
+                , Cmd.map gameMsgWrapper initCmd
+                )
 
 
 main : Program () Model Msg
@@ -113,7 +120,7 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ Action.receiveState GameState
-        , Action.receiveAction GameMsg
+        , Action.receiveAction (\( playerId, action ) -> GameMsg playerId action)
         , Action.gameConnected GameConnected
         , Action.newGameResp NewGameResp
         ]
@@ -183,11 +190,21 @@ update msg model =
         GameConnected gameInfoVal ->
             case Decode.decodeValue Game.gameInfoDecoder gameInfoVal of
                 Ok gameInfo ->
-                    let
-                        ( gameInst, cmd ) =
-                            initGame gameInfo.gameName gameInfo.gameId gameInfo.playerId
-                    in
-                    ( { model | game = Just gameInst }, cmd )
+                    case initGame gameInfo.gameName gameInfo.gameId gameInfo.gameState gameInfo.playerId of
+                        Ok ( gameInst, maybeMsg, cmd ) ->
+                            case maybeMsg of
+                                Just msg_ ->
+                                    let
+                                        ( model_, cmd_ ) =
+                                            update msg_ { model | game = Just gameInst }
+                                    in
+                                    ( model_, Cmd.batch [ cmd, cmd_ ] )
+
+                                Nothing ->
+                                    ( { model | game = Just gameInst }, cmd )
+
+                        Err err ->
+                            ( model, log ("Error initializing game " ++ err) )
 
                 Err err ->
                     ( model, log ("Error decoding game info " ++ Decode.errorToString err) )
@@ -205,7 +222,8 @@ update msg model =
                 Nothing ->
                     ( model, Cmd.none )
 
-        GameMsg childMsg ->
+        GameMsg maybePlayerId childMsg ->
+            -- TODO: Don't ignore "maybePlayerId" here
             case model.game of
                 Just game ->
                     case game.update childMsg game.model of

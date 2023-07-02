@@ -1,8 +1,9 @@
 module Game.TicTacToe.Game exposing (Model, Msg(..), game, init, subscriptions, update, view)
 
 import Browser
-import Game exposing (GameMsg(..))
-import Game.TicTacToe.Engine as Engine exposing (State, init)
+import Dict exposing (Dict)
+import Game exposing (GameMsg(..), PlayerId)
+import Game.TicTacToe.Engine as Engine exposing (Player(..), State, init)
 import Html exposing (Html, button, div, input, span, text)
 import Html.Attributes exposing (type_, value)
 import Html.Events exposing (onBlur, onClick, onFocus, onInput)
@@ -24,6 +25,10 @@ game =
     , stateDecoder = Engine.stateDecoder
     , setGameState = setGameState
     }
+
+
+
+-- TODO: Handle differentiating action types better!
 
 
 msgEncoder : Msg -> Value
@@ -48,14 +53,16 @@ modelEncoder : Model -> Value
 modelEncoder model =
     Encode.object
         [ ( "state", Engine.stateEncoder model.state )
+        , ( "playerId", Encode.string model.playerId )
         , ( "name", Encode.string model.name )
         ]
 
 
 modelDecoder : Decoder Model
 modelDecoder =
-    Decode.map2 Model
+    Decode.map3 Model
         (Decode.field "state" Engine.stateDecoder)
+        (Decode.field "playerId" Decode.string)
         (Decode.field "name" Decode.string)
 
 
@@ -66,17 +73,22 @@ subscriptions model =
 
 type alias Model =
     { state : State
+    , playerId : PlayerId
     , name : String
     }
 
 
-init : ( Model, Cmd Msg )
-init =
+init : PlayerId -> State -> ( Model, Maybe Msg, Cmd Msg )
+init playerId state =
     let
-        ( state, _ ) =
-            Engine.init
+        msg =
+            if Dict.size state.players < 2 then
+                Just (GameAction Engine.JoinGame)
+
+            else
+                Nothing
     in
-    ( Model state "tic tac toe", Cmd.none )
+    ( Model state playerId "tic tac toe", msg, Cmd.none )
 
 
 type Msg
@@ -97,10 +109,31 @@ showTile pos tile =
             span [] [ text " [O] " ]
 
 
+showPlayer : Player -> String
+showPlayer p =
+    case p of
+        X ->
+            "X"
+
+        O ->
+            "O"
+
+
+descPlayer : PlayerId -> Dict PlayerId Player -> String
+descPlayer p players =
+    case Dict.get p players of
+        Just player ->
+            "Playing as " ++ showPlayer player
+
+        _ ->
+            "Spectating"
+
+
 view : Model -> Html Msg
 view model =
     div []
         [ text model.name
+        , text (descPlayer model.playerId model.state.players)
         , div [] (List.indexedMap showTile model.state.tiles)
         ]
 
@@ -114,7 +147,7 @@ update msg model =
         GameAction action ->
             let
                 ( state_, gameCmd ) =
-                    Engine.update (Game.PlayerMsg action) model.state
+                    Engine.update (Game.PlayerMsg model.playerId action) model.state
             in
             ( { model | state = state_ }, Cmd.none )
 

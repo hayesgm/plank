@@ -68,17 +68,30 @@ export class Plank {
     console.log(`[Plank][${this.gameName}][${this.gameId}]`, ...msg);
   }
 
-  initialize(gameId, gameName) {
+  async initialize(gameId, gameName) {
     this.gameId = gameId;
     this.gameName = gameName;
 
     this.game = Elm.Server.init({
-      flags: "Initial Message"
+      flags: gameName
     });
 
     this.game.ports.log.subscribe((msg) => {
       this.log(msg);
     });
+
+    // TODO: Is there a cleaner way to make sure we get state first?
+    let resolve;
+    let gameStateSet = new Promise((resolve_, reject_) => {
+      resolve = resolve_;
+    });
+
+    this.game.ports.giveState.subscribe((state) => {
+      this.gameState = state;
+      resolve();
+    })
+
+    await gameStateSet;
 
     return jsonResp({gameId});
   }
@@ -87,7 +100,7 @@ export class Plank {
     let action = JSON.parse(event.data);
     console.log("playerId", playerId, "action", action);
     // TODO: Extra things with event.data?
-    this.game.ports.receiveAction.send(action);
+    this.game.ports.receiveAction.send([playerId, action]);
   }
 
   async upgrade(request) {
@@ -96,7 +109,7 @@ export class Plank {
     const [client, server] = Object.values(webSocketPair);
     const playerId = generatePlayerId();
 
-    // TODO: Pass this state back
+    // TODO: Maybe group these calls?
     this.game.ports.giveState.subscribe((state) => {
       this.log(playerId, "New Game State: ", state);
       server.send(JSON.stringify({state}));
@@ -112,6 +125,7 @@ export class Plank {
       connected: {
         gameName: this.gameName,
         gameId: this.gameId,
+        gameState: this.gameState,
         playerId
       }
     }));

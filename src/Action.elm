@@ -6,7 +6,7 @@ import Json.Encode exposing (Value)
 port sendAction : Value -> Cmd msg
 
 
-port receiveAction : (Value -> msg) -> Sub msg
+port receiveAction : (( Maybe String, Value ) -> msg) -> Sub msg
 
 
 port giveState : Value -> Cmd msg
