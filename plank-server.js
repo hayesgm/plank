@@ -25,16 +25,17 @@ function generatePlayerId() {
 
 function jsonResp(res) {
   return new Response(JSON.stringify(res, null, 4), {
-    'Content-Type': 'application/json'
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*'
+    }
   });
 }
 
 async function handleRequest(request, env) {
-  console.log("env", env);
   let url = new URL(request.url);
   let pathnames = url.pathname.split('/').filter((x) => x !== '');
   let prefix = pathnames.shift();
-  console.log({prefix, pathnames});
 
   switch (prefix) {
   case undefined:
@@ -51,7 +52,7 @@ async function handleRequest(request, env) {
       } else if (pathnames[0] === 'connect') {
         let gameId = pathnames[1];
         let plank = env.PLANK.get(env.PLANK.idFromName(gameId));
-        return await plank.fetch(request.url);
+        return await plank.fetch(request);
       }
   default:
     return new Response("Not found", {status: 404});
@@ -98,13 +99,17 @@ export class Plank {
 
   async handlePlayerMessage(playerId, event) {
     let action = JSON.parse(event.data);
-    console.log("playerId", playerId, "action", action);
+    console.log("[handlePlayerMessage]", "playerId", playerId, "action", action);
     // TODO: Extra things with event.data?
     this.game.ports.receiveAction.send([playerId, action]);
   }
 
   async upgrade(request) {
-    // TODO: Double check the client is trying to upgrade?
+    const upgradeHeader = request.headers.get("Upgrade")
+    if (upgradeHeader !== "websocket") {
+      return new Response("Expected websocket", { status: 400 })
+    }
+
     const webSocketPair = new WebSocketPair();
     const [client, server] = Object.values(webSocketPair);
     const playerId = generatePlayerId();
@@ -136,8 +141,38 @@ export class Plank {
     });
   }
 
+  async handleOptions(request) {
+    if (
+      request.headers.get("Origin") !== null &&
+      request.headers.get("Access-Control-Request-Method") !== null &&
+      request.headers.get("Access-Control-Request-Headers") !== null
+    ) {
+      // Handle CORS preflight requests.
+      return new Response(null, {
+        headers: {
+          ...corsHeaders,
+          "Access-Control-Allow-Headers": request.headers.get(
+            "Access-Control-Request-Headers"
+          ),
+        },
+      });
+    } else {
+      // Handle standard OPTIONS request.
+      return new Response(null, {
+        headers: {
+          Allow: "GET, HEAD, POST, OPTIONS",
+        },
+      });
+    }
+  }
+
   // Handle HTTP requests from clients.
   async fetch(request) {
+    if (request.method === "OPTIONS") {
+      // Handle CORS preflight requests
+      return handleOptions(request);
+    }
+
     let url = new URL(request.url);
     let pathnames = url.pathname.split('/').filter((x) => x !== '');
     let prefix = pathnames.shift();

@@ -1,7 +1,7 @@
 import './style.css'
 import { Elm } from './src/Main.elm'
 
-const ssl = false;
+const ssl = import.meta.env.VITE_PLANK_SSL === 'true' ?? false;
 const host = import.meta.env.VITE_PLANK_HOST ?? 'localhost:2233';
 const app = Elm.Main.init({
   node: document.getElementById('root'),
