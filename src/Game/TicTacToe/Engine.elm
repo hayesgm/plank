@@ -1,10 +1,11 @@
-module Game.TicTacToe.Engine exposing (InternalMsg(..), Player(..), State, Tile(..), engine, init, msgDecoder, msgEncoder, stateDecoder, stateEncoder, subscriptions, update)
+module Game.TicTacToe.Engine exposing (InternalMsg(..), Player(..), State, Tile(..), chunk, engine, init, msgDecoder, msgEncoder, stateDecoder, stateEncoder, subscriptions, update)
 
 import Dict exposing (Dict)
 import Game exposing (GameMsg, PlayerId)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import List.Extra as ListEx
+import Time
 
 
 engine : Game.Engine State InternalMsg
@@ -21,7 +22,7 @@ engine =
 
 subscriptions : State -> Sub InternalMsg
 subscriptions model =
-    Sub.none
+    Time.every 1000 Tock
 
 
 type Player
@@ -54,6 +55,7 @@ type alias Msg =
 type InternalMsg
     = JoinGame
     | Claim Int
+    | Tock Time.Posix
 
 
 other : Player -> Player
@@ -102,6 +104,9 @@ checkWinner tiles =
 updateInternal : InternalMsg -> Maybe PlayerId -> State -> ( State, Cmd InternalMsg )
 updateInternal msg maybePlayerId state =
     case msg of
+        Tock t ->
+            ( state, Cmd.none )
+
         JoinGame ->
             let
                 newPlayers =
@@ -251,6 +256,9 @@ stateDecoder =
 msgEncoder : InternalMsg -> Value
 msgEncoder msg =
     case msg of
+        Tock t ->
+            Encode.object [ ( "tock", Encode.int (Time.posixToMillis t) ) ]
+
         JoinGame ->
             Encode.string "join-game"
 
@@ -276,6 +284,7 @@ msgDecoder =
     Decode.oneOf
         [ decodeMatch JoinGame "join-game"
         , Decode.map Claim (Decode.field "claim" Decode.int)
+        , Decode.map Tock (Decode.field "tock" Decode.int |> Decode.map Time.millisToPosix)
         ]
 
 

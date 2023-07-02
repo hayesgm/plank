@@ -123,6 +123,12 @@ subscriptions model =
         , Action.receiveAction (\( playerId, action ) -> GameMsg playerId action)
         , Action.gameConnected GameConnected
         , Action.newGameResp NewGameResp
+        , case model.game of
+            Just game ->
+                game.subscriptions game.model
+
+            _ ->
+                Sub.none
         ]
 
 

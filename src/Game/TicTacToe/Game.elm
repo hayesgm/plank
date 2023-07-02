@@ -9,6 +9,7 @@ import Html.Attributes exposing (type_, value)
 import Html.Events exposing (onBlur, onClick, onFocus, onInput)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
+import Time
 
 
 game : Game.Game Model State Msg
@@ -34,8 +35,8 @@ game =
 msgEncoder : Msg -> Value
 msgEncoder msg =
     case msg of
-        Rename s ->
-            Encode.object [ ( "rename", Encode.string s ) ]
+        Tock t ->
+            Encode.object [ ( "tock", Encode.int (Time.posixToMillis t) ) ]
 
         GameAction action ->
             Engine.msgEncoder action
@@ -44,8 +45,8 @@ msgEncoder msg =
 msgDecoder : Decoder Msg
 msgDecoder =
     Decode.oneOf
-        [ Decode.map GameAction Engine.msgDecoder
-        , Decode.map Rename (Decode.field "rename" Decode.string)
+        [ Decode.map Tock (Decode.field "tock" Decode.int |> Decode.map Time.millisToPosix)
+        , Decode.map GameAction Engine.msgDecoder
         ]
 
 
@@ -54,7 +55,7 @@ modelEncoder model =
     Encode.object
         [ ( "state", Engine.stateEncoder model.state )
         , ( "playerId", Encode.string model.playerId )
-        , ( "name", Encode.string model.name )
+        , ( "time", Encode.int model.time )
         ]
 
 
@@ -63,18 +64,18 @@ modelDecoder =
     Decode.map3 Model
         (Decode.field "state" Engine.stateDecoder)
         (Decode.field "playerId" Decode.string)
-        (Decode.field "name" Decode.string)
+        (Decode.field "time" Decode.int)
 
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.none
+    Time.every 1000 Tock
 
 
 type alias Model =
     { state : State
     , playerId : PlayerId
-    , name : String
+    , time : Int
     }
 
 
@@ -88,12 +89,12 @@ init playerId state =
             else
                 Nothing
     in
-    ( Model state playerId "tic tac toe", msg, Cmd.none )
+    ( Model state playerId 0, msg, Cmd.none )
 
 
 type Msg
-    = Rename String
-    | GameAction Engine.InternalMsg
+    = GameAction Engine.InternalMsg
+    | Tock Time.Posix
 
 
 showTile : Int -> Engine.Tile -> Html Msg
@@ -132,13 +133,14 @@ descPlayer p players =
 view : Model -> Html Msg
 view model =
     div []
-        [ text model.name
+        [ text "Tic Tac Toe"
+        , text (String.fromInt model.time)
         , text (descPlayer model.playerId model.state.players)
         , text (Maybe.map (\winner -> " - " ++ showPlayer winner ++ " wins! 🎊") model.state.winner |> Maybe.withDefault "")
         , div []
             (model.state.tiles
                 |> List.indexedMap showTile
-                |> chunk 3
+                |> Engine.chunk 3
                 |> List.map (div [])
             )
         ]
@@ -147,8 +149,8 @@ view model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        Rename str ->
-            ( { model | name = str }, Cmd.none )
+        Tock t ->
+            ( { model | time = model.time + 1 }, Cmd.none )
 
         GameAction action ->
             let
@@ -161,12 +163,3 @@ update msg model =
 setGameState : State -> Model -> Model
 setGameState state model =
     { model | state = state }
-
-
-chunk : Int -> List a -> List (List a)
-chunk n l =
-    if List.isEmpty l then
-        []
-
-    else
-        List.take n l :: chunk n (List.drop n l)

@@ -84,6 +84,12 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.batch
         [ receiveAction (\( playerId, action ) -> GameMsg playerId action)
+        , case model.game of
+            Just game ->
+                game.subscriptions game.state
+
+            _ ->
+                Sub.none
         ]
 
 
@@ -114,7 +120,11 @@ update msg model =
                 GameMsg playerId childMsg ->
                     case game.update childMsg playerId game.state of
                         Ok ( stateNext, cmd ) ->
-                            ( { model | game = Just { game | state = stateNext } }, Cmd.batch [ giveState stateNext, cmd ] )
+                            if game.state /= stateNext then
+                                ( { model | game = Just { game | state = stateNext } }, Cmd.batch [ giveState stateNext, cmd ] )
+
+                            else
+                                ( model, cmd )
 
                         Err err ->
                             ( model, log err )
