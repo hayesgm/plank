@@ -2,10 +2,9 @@ import './style.css'
 import { Elm } from './src/Main.elm'
 
 const ssl = false;
-const host = 'localhost:2233';
+const host = import.meta.env.VITE_PLANK_HOST ?? 'localhost:2233';
 const app = Elm.Main.init({
   node: document.getElementById('root'),
-  flags: "Initial Message"
 });
 
 let websocket;
@@ -31,16 +30,6 @@ app.ports.joinGame.subscribe((gameId) => {
     }
   });
 });
-
-// app.ports.receiveState.send({
-//   turn: 'o',
-//   tiles: [
-//     'open',
-//     'open',
-//     'open',
-//   ],
-//   winner: null
-// });
 
 app.ports.sendAction.subscribe((action) => {
   console.log("Send action", action, websocket);
