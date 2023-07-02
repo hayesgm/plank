@@ -33,3 +33,42 @@ Note: this server does not currently auto-reload. You will need to reload it whe
 
 You should have a server running on [http://127.0.0.1:2233](http://127.0.0.1:2233).
 
+## Developing
+
+### Types
+
+It's strongly recommended that you put your game types (e.g. State, Model, Msg, etc) in `Game/{Game}/Types.elm` and use automatic code generation to build encoders and decoders. Since nearly everything needs to be serializable, this will save your hours of effort and potential bugs.
+
+E.g.
+
+**Game/TicTacToe/Types.elm**
+
+```elm
+-- [generator-start]
+
+
+type EngineMsg
+    = JoinGame
+    | Claim Int
+    | Tick Posix
+
+
+type ViewMsg
+    = EngineMsg EngineMsg
+    | Tock Posix
+
+-- ...
+-- [generator-end]
+```
+
+Then run:
+
+```sh
+npm run build-types src/Game/TicTacToe/Types.elm
+```
+
+There may be some types that need custom encoders / decoders, but you can easily append those at the end of `Types.elm`.
+
+## License
+
+All rights reserved.

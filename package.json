@@ -8,9 +8,11 @@
     "dev-server": "vite build && wrangler dev --local",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "vite build --mode prod && wrangler publish && wrangler pages publish dist/"
+    "deploy": "vite build --mode prod && wrangler publish && wrangler pages publish dist/",
+    "build-types": "npx elm-coder-generator"
   },
   "devDependencies": {
+    "elm-coder-generator": "^1.0.3",
     "vite": "^4.3.9",
     "vite-plugin-elm": "^2.8.0"
   },

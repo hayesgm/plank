@@ -121,3 +121,13 @@ decodeAssetMapping =
                 \pkg asset ->
                     Dict.get ("./src/Game/" ++ pkg ++ "/assets/" ++ asset) dict
             )
+
+
+encodePlayerId : PlayerId -> Value
+encodePlayerId =
+    Encode.string
+
+
+decodePlayerId : Decoder PlayerId
+decodePlayerId =
+    Decode.string
