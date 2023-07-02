@@ -51,7 +51,7 @@ view : Game.AssetMapping -> Model -> Html ViewMsg
 view asset model =
     div []
         [ text "Tic Tac Toe"
-        , img [ src (Maybe.withDefault "" (asset "test.svg")) ] []
+        , img [ src (Maybe.withDefault "" (asset "tic-tac-toe.svg")) ] []
         , text (String.fromInt model.time)
         , text (descPlayer model.playerId model.state.players)
         , text (Maybe.map (\winner -> " - " ++ showPlayer winner ++ " wins! 🎊") model.state.winner |> Maybe.withDefault "")
@@ -66,7 +66,7 @@ view asset model =
 
 css : Game.AssetMapping -> Maybe String
 css asset =
-    asset "test.css"
+    asset "tic-tac-toe.css"
 
 
 update : ViewMsg -> Model -> ( Model, Cmd ViewMsg )

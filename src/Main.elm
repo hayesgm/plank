@@ -2,6 +2,7 @@ module Main exposing (Model, Msg(..), init, main, subscriptions, update, view)
 
 import Action
 import Browser
+import Browser.Navigation as Nav
 import Console exposing (log)
 import Game
 import Game.TicTacToe.Game as TicTacToe
@@ -10,6 +11,8 @@ import Html.Attributes exposing (placeholder, value)
 import Html.Events exposing (onClick, onInput)
 import Json.Decode as Decode
 import Json.Encode exposing (Value)
+import Routes exposing (Route)
+import Url exposing (Url)
 
 
 type Msg
@@ -18,8 +21,10 @@ type Msg
     | NewGame Game.GameName
     | NewGameResp Value
     | GameConnected Value
-    | SetJoinGameId String
+    | SetInputGameId String
     | JoinGame String
+    | LinkClicked Browser.UrlRequest
+    | UrlChanged Url
 
 
 type alias GameInst =
@@ -33,8 +38,222 @@ type alias GameInst =
     }
 
 
+main : Program Value Model Msg
+main =
+    Browser.application
+        { view = view
+        , init = init
+        , update = update
+        , subscriptions = subscriptions
+        , onUrlRequest = LinkClicked
+        , onUrlChange = UrlChanged
+        }
 
--- TODO: Test early with a second game type
+
+type alias Model =
+    { game : Maybe GameInst
+    , inputGameId : String
+    , assetMapping : String -> Game.AssetMapping
+    , key : Nav.Key
+    , route : Routes.Route
+    }
+
+
+init : Value -> Url -> Nav.Key -> ( Model, Cmd Msg )
+init flags url key =
+    let
+        assetMapping =
+            case Decode.decodeValue Game.decodeAssetMapping flags of
+                Ok x ->
+                    x
+
+                Err err ->
+                    \pkg asset -> Nothing
+
+        route =
+            Routes.getRoute url
+    in
+    ( { game = Nothing
+      , inputGameId = ""
+      , assetMapping = assetMapping
+      , key = key
+      , route = route
+      }
+    , case route of
+        Routes.Game gameId ->
+            Action.joinGame gameId
+
+        _ ->
+            Cmd.none
+    )
+
+
+view : Model -> Browser.Document Msg
+view model =
+    case model.route of
+        Routes.Home ->
+            viewHome model
+
+        Routes.Game gameId ->
+            viewGame gameId model
+
+        Routes.NotFound ->
+            viewNotFound model
+
+
+viewHome : Model -> Browser.Document Msg
+viewHome model =
+    { title = "Plank"
+    , body =
+        [ div []
+            [ div []
+                (List.map
+                    (\gameName ->
+                        div [] [ button [ onClick (NewGame gameName) ] [ text (Game.gameToString gameName) ] ]
+                    )
+                    Game.allGames
+                )
+            , div []
+                [ input [ placeholder "game_...", value model.inputGameId, onInput SetInputGameId ] []
+                , button [ onClick (JoinGame model.inputGameId) ] [ text "Join Game" ]
+                ]
+            ]
+        ]
+    }
+
+
+viewGame : String -> Model -> Browser.Document Msg
+viewGame gameId model =
+    { title = "Plank " ++ gameId
+    , body =
+        case model.game of
+            Just game ->
+                [ text game.gameId
+                , game.view game.model
+                ]
+
+            Nothing ->
+                [ viewNotFoundHtml model ]
+    }
+
+
+viewNotFound : Model -> Browser.Document Msg
+viewNotFound model =
+    { title = "Plank - Not Found"
+    , body = [ viewNotFoundHtml model ]
+    }
+
+
+viewNotFoundHtml : Model -> Html Msg
+viewNotFoundHtml model =
+    div [] [ text "Page not found" ]
+
+
+navigateToGame : Nav.Key -> String -> Cmd Msg
+navigateToGame key gameId =
+    Nav.pushUrl key (Routes.getUrl (Routes.Game gameId))
+
+
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        SetInputGameId inputGameId ->
+            ( { model | inputGameId = inputGameId }, Cmd.none )
+
+        NewGame gameName ->
+            ( model, Action.newGame (Game.gameToString gameName) )
+
+        JoinGame "" ->
+            ( model, Cmd.none )
+
+        JoinGame gameId ->
+            ( model, Cmd.batch [ Action.joinGame gameId, navigateToGame model.key gameId ] )
+
+        NewGameResp v ->
+            case Decode.decodeValue (Decode.field "gameId" Decode.string) v of
+                Ok gameId ->
+                    ( model, Cmd.batch [ Action.joinGame gameId, navigateToGame model.key gameId ] )
+
+                Err err ->
+                    ( model, log ("Error new game response: " ++ Decode.errorToString err) )
+
+        GameConnected gameInfoVal ->
+            case Decode.decodeValue Game.gameInfoDecoder gameInfoVal of
+                Ok gameInfo ->
+                    case initGame gameInfo.gameName gameInfo.gameId gameInfo.gameState gameInfo.playerId model.assetMapping of
+                        Ok ( gameInst, maybeInitMsg, initGameCmd ) ->
+                            case maybeInitMsg of
+                                Just initMsg ->
+                                    let
+                                        ( modelPostUpdate, updateCmd ) =
+                                            update initMsg { model | game = Just gameInst }
+                                    in
+                                    ( modelPostUpdate, Cmd.batch [ initGameCmd, updateCmd ] )
+
+                                Nothing ->
+                                    ( { model | game = Just gameInst }, initGameCmd )
+
+                        Err err ->
+                            ( model, log ("Error initializing game " ++ err) )
+
+                Err err ->
+                    ( model, log ("Error decoding game info " ++ Decode.errorToString err) )
+
+        GameState state ->
+            case model.game of
+                Just game ->
+                    case game.setGameState state game.model of
+                        Ok gameModelNext ->
+                            ( { model | game = Just { game | model = gameModelNext } }, Cmd.none )
+
+                        Err err ->
+                            ( model, log err )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        GameMsg maybePlayerId childMsg ->
+            -- TODO: Don't ignore "maybePlayerId" here
+            case model.game of
+                Just game ->
+                    case game.update childMsg game.model of
+                        Ok ( gameModelNext, cmd ) ->
+                            ( { model | game = Just { game | model = gameModelNext } }, cmd )
+
+                        Err err ->
+                            ( model, log err )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        LinkClicked urlRequest ->
+            case urlRequest of
+                Browser.Internal url ->
+                    ( model, Nav.pushUrl model.key (Url.toString url) )
+
+                Browser.External href ->
+                    ( model, Nav.load href )
+
+        UrlChanged url ->
+            ( { model | route = Routes.getRoute url }
+            , Cmd.none
+            )
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Sub.batch
+        [ Action.receiveState GameState
+        , Action.receiveAction (\( playerId, action ) -> GameMsg playerId action)
+        , Action.gameConnected GameConnected
+        , Action.newGameResp NewGameResp
+        , case model.game of
+            Just game ->
+                game.subscriptions game.model
+
+            _ ->
+                Sub.none
+        ]
 
 
 initGame : Game.GameName -> String -> Value -> String -> (String -> Game.AssetMapping) -> Result String ( GameInst, Maybe Msg, Cmd Msg )
@@ -115,150 +334,3 @@ initGameInst game gameName gameId gameState playerId assetMapping =
                 , Maybe.map gameMsgWrapper maybeMsg
                 , Cmd.batch [ Cmd.map gameMsgWrapper initCmd, loadCss ]
                 )
-
-
-main : Program Value Model Msg
-main =
-    Browser.element
-        { view = view
-        , init = init
-        , update = update
-        , subscriptions = subscriptions
-        }
-
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-    Sub.batch
-        [ Action.receiveState GameState
-        , Action.receiveAction (\( playerId, action ) -> GameMsg playerId action)
-        , Action.gameConnected GameConnected
-        , Action.newGameResp NewGameResp
-        , case model.game of
-            Just game ->
-                game.subscriptions game.model
-
-            _ ->
-                Sub.none
-        ]
-
-
-type alias Model =
-    { game : Maybe GameInst
-    , joinGameId : String
-    , assetMapping : String -> Game.AssetMapping
-    }
-
-
-init : Value -> ( Model, Cmd Msg )
-init assets =
-    let
-        assetMapping =
-            case Decode.decodeValue Game.decodeAssetMapping assets of
-                Ok x ->
-                    x
-
-                Err err ->
-                    \pkg asset -> Nothing
-    in
-    ( { game = Nothing, joinGameId = "", assetMapping = assetMapping }, Cmd.none )
-
-
-view : Model -> Html Msg
-view model =
-    div []
-        [ case model.game of
-            Just game ->
-                div []
-                    [ text game.gameId
-                    , game.view game.model
-                    ]
-
-            Nothing ->
-                div []
-                    [ div []
-                        (List.map
-                            (\gameName ->
-                                div [] [ button [ onClick (NewGame gameName) ] [ text (Game.gameToString gameName) ] ]
-                            )
-                            Game.allGames
-                        )
-                    , div []
-                        [ input [ placeholder "game_...", value model.joinGameId, onInput SetJoinGameId ] []
-                        , button [ onClick (JoinGame model.joinGameId) ] [ text "Join Game" ]
-                        ]
-                    ]
-        ]
-
-
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
-    case msg of
-        SetJoinGameId joinGameId ->
-            ( { model | joinGameId = joinGameId }, Cmd.none )
-
-        NewGame gameName ->
-            ( model, Action.newGame (Game.gameToString gameName) )
-
-        JoinGame "" ->
-            ( model, Cmd.none )
-
-        JoinGame gameId ->
-            ( model, Action.joinGame gameId )
-
-        NewGameResp v ->
-            case Decode.decodeValue (Decode.field "gameId" Decode.string) v of
-                Ok gameId ->
-                    ( model, Action.joinGame gameId )
-
-                Err err ->
-                    ( model, log ("Error new game response: " ++ Decode.errorToString err) )
-
-        GameConnected gameInfoVal ->
-            case Decode.decodeValue Game.gameInfoDecoder gameInfoVal of
-                Ok gameInfo ->
-                    case initGame gameInfo.gameName gameInfo.gameId gameInfo.gameState gameInfo.playerId model.assetMapping of
-                        Ok ( gameInst, maybeMsg, cmd ) ->
-                            case maybeMsg of
-                                Just msg_ ->
-                                    let
-                                        ( model_, cmd_ ) =
-                                            update msg_ { model | game = Just gameInst }
-                                    in
-                                    ( model_, Cmd.batch [ cmd, cmd_ ] )
-
-                                Nothing ->
-                                    ( { model | game = Just gameInst }, cmd )
-
-                        Err err ->
-                            ( model, log ("Error initializing game " ++ err) )
-
-                Err err ->
-                    ( model, log ("Error decoding game info " ++ Decode.errorToString err) )
-
-        GameState state ->
-            case model.game of
-                Just game ->
-                    case game.setGameState state game.model of
-                        Ok gameModelNext ->
-                            ( { model | game = Just { game | model = gameModelNext } }, Cmd.none )
-
-                        Err err ->
-                            ( model, log err )
-
-                Nothing ->
-                    ( model, Cmd.none )
-
-        GameMsg maybePlayerId childMsg ->
-            -- TODO: Don't ignore "maybePlayerId" here
-            case model.game of
-                Just game ->
-                    case game.update childMsg game.model of
-                        Ok ( gameModelNext, cmd ) ->
-                            ( { model | game = Just { game | model = gameModelNext } }, cmd )
-
-                        Err err ->
-                            ( model, log err )
-
-                Nothing ->
-                    ( model, Cmd.none )
