@@ -7,12 +7,11 @@ import Json.Encode as Encode exposing (Value)
 
 type GameName
     = TicTacToe
-    | Checkers
 
 
 allGames : List GameName
 allGames =
-    [ TicTacToe, Checkers ]
+    [ TicTacToe ]
 
 
 gameToString : GameName -> String
@@ -21,24 +20,24 @@ gameToString gameName =
         TicTacToe ->
             "tic-tac-toe"
 
-        Checkers ->
-            "checkers"
-
 
 type GameMsg msg
     = PlayerMsg msg
     | Tick
 
 
-type alias Game state msg =
-    { init : ( state, Cmd msg )
-    , update : msg -> state -> ( state, Cmd msg )
-    , view : state -> Html msg
-    , subscriptions : state -> Sub msg
+type alias Game model state msg =
+    { init : ( model, Cmd msg )
+    , update : msg -> model -> ( model, Cmd msg )
+    , view : model -> Html msg
+    , subscriptions : model -> Sub msg
     , msgEncoder : msg -> Value
     , msgDecoder : Decoder msg
+    , modelEncoder : model -> Value
+    , modelDecoder : Decoder model
     , stateEncoder : state -> Value
     , stateDecoder : Decoder state
+    , setGameState : state -> model -> model
     }
 
 
@@ -68,9 +67,6 @@ gameNameDecoder =
                 case n of
                     "tic-tac-toe" ->
                         Decode.succeed TicTacToe
-
-                    "checkers" ->
-                        Decode.succeed Checkers
 
                     _ ->
                         Decode.fail ("Unknown game " ++ n)

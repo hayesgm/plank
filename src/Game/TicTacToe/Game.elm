@@ -10,7 +10,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 
 
-game : Game.Game Model Msg
+game : Game.Game Model State Msg
 game =
     { view = view
     , init = init
@@ -18,8 +18,11 @@ game =
     , subscriptions = subscriptions
     , msgEncoder = msgEncoder
     , msgDecoder = msgDecoder
-    , stateEncoder = stateEncoder
-    , stateDecoder = stateDecoder
+    , modelEncoder = modelEncoder
+    , modelDecoder = modelDecoder
+    , stateEncoder = Engine.stateEncoder
+    , stateDecoder = Engine.stateDecoder
+    , setGameState = setGameState
     }
 
 
@@ -41,16 +44,16 @@ msgDecoder =
         ]
 
 
-stateEncoder : Model -> Value
-stateEncoder model =
+modelEncoder : Model -> Value
+modelEncoder model =
     Encode.object
         [ ( "state", Engine.stateEncoder model.state )
         , ( "name", Encode.string model.name )
         ]
 
 
-stateDecoder : Decoder Model
-stateDecoder =
+modelDecoder : Decoder Model
+modelDecoder =
     Decode.map2 Model
         (Decode.field "state" Engine.stateDecoder)
         (Decode.field "name" Decode.string)
@@ -114,3 +117,8 @@ update msg model =
                     Engine.update (Game.PlayerMsg action) model.state
             in
             ( { model | state = state_ }, Cmd.none )
+
+
+setGameState : State -> Model -> Model
+setGameState state model =
+    { model | state = state }
