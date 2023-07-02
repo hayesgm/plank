@@ -53,6 +53,7 @@ type alias Game model state msg =
     { init : PlayerId -> state -> ( model, Maybe msg, Cmd msg )
     , update : msg -> model -> ( model, Cmd msg )
     , view : AssetMapping -> model -> Html msg
+    , css : AssetMapping -> Maybe String
     , subscriptions : model -> Sub msg
     , msgEncoder : msg -> Value
     , msgDecoder : Decoder msg

@@ -15,6 +15,7 @@ import Time
 game : Game.Game Model State Msg
 game =
     { view = view
+    , css = css
     , init = init
     , update = update
     , subscriptions = subscriptions
@@ -128,6 +129,11 @@ descPlayer p players =
 
         _ ->
             "Spectating"
+
+
+css : Game.AssetMapping -> Maybe String
+css asset =
+    asset "test.css"
 
 
 view : Game.AssetMapping -> Model -> Html Msg

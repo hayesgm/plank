@@ -1,7 +1,7 @@
 import './style.css'
 import { Elm } from './src/Main.elm'
 
-const imagesUrl =  import.meta.glob("./src/Game/*/assets/*.(jpg|JPG|png|PNG|svg)", { as: "url", eager: true });
+const imagesUrl =  import.meta.glob("./src/Game/*/assets/*.(jpg|JPG|png|PNG|svg|css)", { as: "url", eager: true });
 
 const ssl = import.meta.env.VITE_PLANK_SSL === 'true' ?? false;
 const host = import.meta.env.VITE_PLANK_HOST ?? 'localhost:2233';
@@ -39,6 +39,19 @@ app.ports.sendAction.subscribe((action) => {
   if (websocket) {
     websocket.send(JSON.stringify(action));
   }
+});
+
+let cssEl;
+
+app.ports.loadCss.subscribe((asset) => {
+  console.log("Load css", asset);
+
+  // TODO: Clear out if exists?
+  cssEl = document.createElement('link');
+  cssEl.setAttribute('rel', 'stylesheet');
+  cssEl.setAttribute('type', 'text/css');
+  cssEl.setAttribute('href', asset);
+  document.getElementsByTagName('head')[0].appendChild(cssEl);
 });
 
 app.ports.newGame.subscribe(async (gameName) => {

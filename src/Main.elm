@@ -86,11 +86,22 @@ initGameInst game gameName gameId gameState playerId assetMapping =
                             ( _, Err modelErr ) ->
                                 Err ("Error decoding model " ++ Decode.errorToString modelErr)
 
+                gameAssetMapping =
+                    assetMapping (Game.gameReflect gameName)
+
                 view_ =
-                    Html.map gameMsgWrapper << game.view (assetMapping (Game.gameReflect gameName)) << Result.withDefault initModel << Decode.decodeValue game.modelDecoder
+                    Html.map gameMsgWrapper << game.view gameAssetMapping << Result.withDefault initModel << Decode.decodeValue game.modelDecoder
 
                 subscriptions_ =
                     Sub.map gameMsgWrapper << game.subscriptions << Result.withDefault initModel << Decode.decodeValue game.modelDecoder
+
+                loadCss =
+                    case game.css gameAssetMapping of
+                        Just asset ->
+                            Action.loadCss asset
+
+                        _ ->
+                            Cmd.none
             in
             Ok
                 ( { model = game.modelEncoder initModel
@@ -102,7 +113,7 @@ initGameInst game gameName gameId gameState playerId assetMapping =
                   , playerId = playerId
                   }
                 , Maybe.map gameMsgWrapper maybeMsg
-                , Cmd.map gameMsgWrapper initCmd
+                , Cmd.batch [ Cmd.map gameMsgWrapper initCmd, loadCss ]
                 )
 
 
