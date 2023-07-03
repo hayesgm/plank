@@ -5,8 +5,10 @@ import Browser
 import Browser.Navigation as Nav
 import Console exposing (log)
 import Game
-import Game.TicTacToe.Game as TicTacToe
-import Game.Wordle.Game as Wordle
+import Game.TicTacToe.Game
+import Game.Wordle.Game
+import GameInfo
+import GameList
 import Html exposing (Html, a, button, div, input, text)
 import Html.Attributes exposing (href, placeholder, value)
 import Html.Events exposing (onClick, onInput)
@@ -19,7 +21,7 @@ import Url exposing (Url)
 type Msg
     = GameState Value
     | InboundMsg Bool Value
-    | NewGame Game.GameName
+    | NewGame GameList.GameName
     | NewGameResp Value
     | GameConnected Value
     | SetInputGameId String
@@ -30,10 +32,10 @@ type Msg
 
 type alias GameInst =
     { model : Value
-    , update : Bool -> Value -> Value -> Result String ( Value, Cmd Msg )
-    , view : Value -> Html Msg
-    , subscriptions : Value -> Sub Msg
-    , setGameState : Value -> Value -> Result String Value
+    , state : Value
+    , update : Bool -> Value -> Value -> Value -> Result String ( Maybe Value, Maybe Value, Cmd Msg )
+    , view : Value -> Value -> Html Msg
+    , subscriptions : Value -> Value -> Sub Msg
     , gameId : String
     , playerId : String
     }
@@ -110,9 +112,9 @@ viewHome model =
             [ div []
                 (List.map
                     (\gameName ->
-                        div [] [ button [ onClick (NewGame gameName) ] [ text (Game.gameToString gameName) ] ]
+                        div [] [ button [ onClick (NewGame gameName) ] [ text (GameList.gameToString gameName) ] ]
                     )
-                    Game.allGames
+                    GameList.allGames
                 )
             , div []
                 [ input [ placeholder "game_...", value model.inputGameId, onInput SetInputGameId ] []
@@ -131,7 +133,7 @@ viewGame gameId model =
             ++ (case model.game of
                     Just game ->
                         [ text game.gameId
-                        , game.view game.model
+                        , game.view game.model game.state
                         ]
 
                     Nothing ->
@@ -164,7 +166,7 @@ update msg model =
             ( { model | inputGameId = inputGameId }, Cmd.none )
 
         NewGame gameName ->
-            ( model, Action.newGame (Game.gameToString gameName) )
+            ( model, Action.newGame (GameList.gameToString gameName) )
 
         JoinGame "" ->
             ( model, Cmd.none )
@@ -181,7 +183,7 @@ update msg model =
                     ( model, log ("Error new game response: " ++ Decode.errorToString err) )
 
         GameConnected gameInfoVal ->
-            case Decode.decodeValue Game.gameInfoDecoder gameInfoVal of
+            case Decode.decodeValue GameInfo.gameInfoDecoder gameInfoVal of
                 Ok gameInfo ->
                     case initGame gameInfo.gameName gameInfo.gameId gameInfo.gameState gameInfo.playerId model.assetMapping of
                         Ok ( gameInst, maybeInitMsg, initGameCmd ) ->
@@ -205,23 +207,27 @@ update msg model =
         GameState state ->
             case model.game of
                 Just game ->
-                    case game.setGameState state game.model of
-                        Ok gameModelNext ->
-                            ( { model | game = Just { game | model = gameModelNext } }, Cmd.none )
+                    ( { model | game = Just { game | state = state } }, Cmd.none )
 
-                        Err err ->
-                            ( model, log err )
-
-                Nothing ->
+                _ ->
                     ( model, Cmd.none )
 
         InboundMsg externalMsg inboundMsg ->
             case model.game of
                 Just game ->
                     -- This message comes from receiveAction
-                    case game.update (externalMsg == False) inboundMsg game.model of
-                        Ok ( gameModelNext, cmd ) ->
-                            ( { model | game = Just { game | model = gameModelNext } }, cmd )
+                    case game.update (externalMsg == False) inboundMsg game.model game.state of
+                        Ok ( gameModelNext, gameStateNext, cmd ) ->
+                            ( { model
+                                | game =
+                                    Just
+                                        { game
+                                            | model = Maybe.withDefault game.model gameModelNext
+                                            , state = Maybe.withDefault game.state gameStateNext
+                                        }
+                              }
+                            , cmd
+                            )
 
                         Err err ->
                             ( model, log err )
@@ -252,7 +258,7 @@ subscriptions model =
         , Action.newGameResp NewGameResp
         , case model.game of
             Just game ->
-                game.subscriptions game.model
+                game.subscriptions game.model game.state
 
             _ ->
                 Sub.none
@@ -283,19 +289,19 @@ encodeInboundMsg ( maybePlayerId, engineMsg ) =
                 [ ( "SM", engineMsg ) ]
 
 
-initGame : Game.GameName -> String -> Value -> String -> (String -> Game.AssetMapping) -> Result String ( GameInst, Maybe Msg, Cmd Msg )
+initGame : GameList.GameName -> String -> Value -> String -> (String -> Game.AssetMapping) -> Result String ( GameInst, Maybe Msg, Cmd Msg )
 initGame gameName gameId gameState playerId assetMapping =
     case gameName of
-        Game.TicTacToe ->
-            initGameInst TicTacToe.game gameName gameId gameState playerId assetMapping
+        GameList.TicTacToe ->
+            initGameInst Game.TicTacToe.Game.game gameName gameId gameState playerId assetMapping
 
-        Game.Wordle ->
-            initGameInst Wordle.game gameName gameId gameState playerId assetMapping
+        GameList.Wordle ->
+            initGameInst Game.Wordle.Game.game gameName gameId gameState playerId assetMapping
 
 
-initGameInst : Game.Game model state engineMsg gameMsg -> Game.GameName -> String -> Value -> String -> (String -> Game.AssetMapping) -> Result String ( GameInst, Maybe Msg, Cmd Msg )
+initGameInst : Game.Game model state engineMsg gameMsg -> GameList.GameName -> String -> Value -> String -> (String -> Game.AssetMapping) -> Result String ( GameInst, Maybe Msg, Cmd Msg )
 initGameInst game gameName gameId gameState playerId assetMapping =
-    case Decode.decodeValue game.stateDecoder gameState of
+    case Decode.decodeValue game.engine.stateDecoder gameState of
         Err err ->
             Err (Decode.errorToString err)
 
@@ -311,9 +317,9 @@ initGameInst game gameName gameId gameState playerId assetMapping =
                             (Decode.map2
                                 Game.PlayerMsg
                                 (Decode.field "PID" Decode.string)
-                                (Decode.field "PM" game.engineMsgDecoder)
+                                (Decode.field "PM" game.engine.msgDecoder)
                             )
-                        , Decode.map Game.EngineMsg (Decode.map Game.SystemMsg (Decode.field "SM" game.engineMsgDecoder))
+                        , Decode.map Game.EngineMsg (Decode.map Game.SystemMsg (Decode.field "SM" game.engine.msgDecoder))
                         , Decode.map Game.GameMsg (Decode.field "GM" game.gameMsgDecoder)
                         ]
 
@@ -323,7 +329,7 @@ initGameInst game gameName gameId gameState playerId assetMapping =
                         Game.ForEngine engineMsg ->
                             Encode.object
                                 [ ( "PID", Encode.string playerId )
-                                , ( "PM", game.engineMsgEncoder engineMsg )
+                                , ( "PM", game.engine.msgEncoder engineMsg )
                                 ]
 
                         Game.ForSelf gameMsg_ ->
@@ -334,18 +340,25 @@ initGameInst game gameName gameId gameState playerId assetMapping =
                     InboundMsg False << gameMsgEncoder
 
                 update_ =
-                    \sendMsg msgEnc modelPreEnc ->
-                        case ( Decode.decodeValue inboundMsgDecoder msgEnc, Decode.decodeValue game.modelDecoder modelPreEnc ) of
-                            ( Ok inboundMsg, Ok modelPre ) ->
+                    \sendMsg msgEnc modelPreEnc stateEnc ->
+                        case ( Decode.decodeValue inboundMsgDecoder msgEnc, Decode.decodeValue game.modelDecoder modelPreEnc, Decode.decodeValue game.engine.stateDecoder stateEnc ) of
+                            ( Ok (Game.GameMsg gameMsg), Ok modelPre, Ok state ) ->
                                 let
                                     ( modelNext, cmdNext ) =
-                                        game.update inboundMsg modelPre
+                                        game.update gameMsg modelPre state
+                                in
+                                Ok ( Just (game.modelEncoder modelNext), Nothing, Cmd.map gameMsgWrapper cmdNext )
+
+                            ( Ok (Game.EngineMsg engineMsg), Ok modelPre, Ok state ) ->
+                                let
+                                    ( stateNext, gameCmd ) =
+                                        game.engine.update engineMsg state
 
                                     sendActionCmd =
-                                        case ( sendMsg, inboundMsg ) of
-                                            ( True, Game.EngineMsg (Game.PlayerMsg playerId_ engineMsg) ) ->
+                                        case ( sendMsg, engineMsg ) of
+                                            ( True, Game.PlayerMsg playerId_ playerMsg ) ->
                                                 if playerId == playerId_ then
-                                                    Action.sendAction (game.engineMsgEncoder engineMsg)
+                                                    Action.sendAction (game.engine.msgEncoder playerMsg)
 
                                                 else
                                                     Cmd.none
@@ -353,34 +366,49 @@ initGameInst game gameName gameId gameState playerId assetMapping =
                                             _ ->
                                                 Cmd.none
                                 in
-                                Ok ( game.modelEncoder modelNext, Cmd.batch [ Cmd.map gameMsgWrapper cmdNext, sendActionCmd ] )
+                                Ok ( Nothing, Just (game.engine.stateEncoder stateNext), Cmd.batch [ Cmd.map gameMsgWrapper (Cmd.map Game.ForEngine gameCmd), sendActionCmd ] )
 
-                            ( Err msgErr, _ ) ->
+                            ( Err msgErr, _, _ ) ->
                                 Err ("Error decoding msg " ++ Decode.errorToString msgErr)
 
-                            ( _, Err modelErr ) ->
+                            ( _, Err modelErr, _ ) ->
                                 Err ("Error decoding model " ++ Decode.errorToString modelErr)
 
-                setGameState_ =
-                    \state modelPre ->
-                        case ( Decode.decodeValue game.stateDecoder state, Decode.decodeValue game.modelDecoder modelPre ) of
-                            ( Ok state_, Ok modelPre_ ) ->
-                                Ok (game.modelEncoder (game.setGameState state_ modelPre_))
-
-                            ( Err stateErr, _ ) ->
+                            ( _, _, Err stateErr ) ->
                                 Err ("Error decoding state " ++ Decode.errorToString stateErr)
 
-                            ( _, Err modelErr ) ->
-                                Err ("Error decoding model " ++ Decode.errorToString modelErr)
-
                 gameAssetMapping =
-                    assetMapping (Game.gameReflect gameName)
+                    assetMapping (GameList.gameToString gameName)
 
                 view_ =
-                    Html.map gameMsgWrapper << game.view gameAssetMapping << Result.withDefault initModel << Decode.decodeValue game.modelDecoder
+                    \modelEnc stateEnc ->
+                        let
+                            model =
+                                modelEnc
+                                    |> Decode.decodeValue game.modelDecoder
+                                    |> Result.withDefault initModel
+
+                            state =
+                                stateEnc
+                                    |> Decode.decodeValue game.engine.stateDecoder
+                                    |> Result.withDefault initState
+                        in
+                        Html.map gameMsgWrapper (game.view gameAssetMapping model state)
 
                 subscriptions_ =
-                    Sub.map gameMsgWrapper << game.subscriptions << Result.withDefault initModel << Decode.decodeValue game.modelDecoder
+                    \modelEnc stateEnc ->
+                        let
+                            model =
+                                modelEnc
+                                    |> Decode.decodeValue game.modelDecoder
+                                    |> Result.withDefault initModel
+
+                            state =
+                                stateEnc
+                                    |> Decode.decodeValue game.engine.stateDecoder
+                                    |> Result.withDefault initState
+                        in
+                        Sub.map gameMsgWrapper (game.subscriptions model state)
 
                 loadCss =
                     case game.css gameAssetMapping of
@@ -392,10 +420,10 @@ initGameInst game gameName gameId gameState playerId assetMapping =
             in
             Ok
                 ( { model = game.modelEncoder initModel
+                  , state = game.engine.stateEncoder initState
                   , update = update_
                   , view = view_
                   , subscriptions = subscriptions_
-                  , setGameState = setGameState_
                   , gameId = gameId
                   , playerId = playerId
                   }

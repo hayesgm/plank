@@ -3,7 +3,7 @@ module Game.Wordle.Game exposing (game)
 import Browser
 import Dict exposing (Dict)
 import Game exposing (GameMsg(..), InboundMsg(..), PlayerId)
-import Game.Wordle.Engine as Engine exposing (update)
+import Game.Wordle.Engine as Engine exposing (engine)
 import Game.Wordle.Helpers as Helpers exposing (Status(..), getStatus)
 import Game.Wordle.Types as Types exposing (AnnotatedGuess, Annotation(..), EngineMsg(..), Model, State, ViewMsg(..))
 import Html exposing (Html, button, div, img, input, span, text)
@@ -20,13 +20,9 @@ game =
     , subscriptions = subscriptions
     , gameMsgEncoder = Types.encodeViewMsg
     , gameMsgDecoder = Types.decodeViewMsg
-    , engineMsgEncoder = Types.encodeEngineMsg
-    , engineMsgDecoder = Types.decodeEngineMsg
     , modelEncoder = Types.encodeModel
     , modelDecoder = Types.decodeModel
-    , stateEncoder = Types.encodeState
-    , stateDecoder = Types.decodeState
-    , setGameState = setGameState
+    , engine = engine
     }
 
 
@@ -41,22 +37,22 @@ init playerId state =
                 _ ->
                     Nothing
     in
-    ( Model state playerId "", msg, Cmd.none )
+    ( Model playerId "", msg, Cmd.none )
 
 
-subscriptions : Model -> Sub (GameMsg EngineMsg ViewMsg)
-subscriptions model =
+subscriptions : Model -> State -> Sub (GameMsg EngineMsg ViewMsg)
+subscriptions model state =
     Sub.none
 
 
-view : Game.AssetMapping -> Model -> Html (GameMsg EngineMsg ViewMsg)
-view asset model =
+view : Game.AssetMapping -> Model -> State -> Html (GameMsg EngineMsg ViewMsg)
+view asset model state =
     div []
         [ text "Wordle"
         , img [ src (Maybe.withDefault "" (asset "wordle.svg")) ] []
         , div []
             [ text
-                (case getStatus model.state.guesses of
+                (case getStatus state.guesses of
                     Won ->
                         "You won!"
 
@@ -67,8 +63,8 @@ view asset model =
                         ""
                 )
             ]
-        , text (descPlayer model.playerId model.state.player)
-        , div [] (List.map showGuess model.state.guesses)
+        , text (descPlayer model.playerId state.player)
+        , div [] (List.map showGuess state.guesses)
         , input [ placeholder "Guess", value model.guess, onInput (ForSelf << SetGuess) ] []
         , button [ onClick (ForEngine (Types.Guess model.guess)) ] [ text "Guess" ]
         ]
@@ -102,23 +98,11 @@ showGuess guess =
         )
 
 
-update : InboundMsg EngineMsg ViewMsg -> Model -> ( Model, Cmd (GameMsg EngineMsg ViewMsg) )
-update msg model =
+update : ViewMsg -> Model -> State -> ( Model, Cmd (GameMsg EngineMsg ViewMsg) )
+update msg model state =
     case msg of
-        GameMsg (SetGuess guess) ->
+        SetGuess guess ->
             ( { model | guess = guess }, Cmd.none )
-
-        EngineMsg engineMsg ->
-            let
-                ( state_, gameCmd ) =
-                    Engine.update engineMsg model.state
-            in
-            ( { model | state = state_ }, Cmd.none )
-
-
-setGameState : State -> Model -> Model
-setGameState state model =
-    { model | state = state }
 
 
 descPlayer : PlayerId -> Maybe PlayerId -> String

@@ -3,8 +3,9 @@ module Server exposing (Model, Msg(..), init, main, subscriptions, update)
 import Action exposing (giveState, receiveAction)
 import Console exposing (log)
 import Game exposing (EngineMsg(..))
-import Game.TicTacToe.Engine as TicTacToe
-import Game.Wordle.Engine as Wordle
+import Game.TicTacToe.Engine
+import Game.Wordle.Engine
+import GameList
 import Json.Decode as Decode
 import Json.Encode as Encode exposing (Value)
 import Platform exposing (worker)
@@ -21,14 +22,14 @@ type alias GameInst =
     }
 
 
-initGame : Game.GameName -> ( GameInst, Value, Cmd Msg )
+initGame : GameList.GameName -> ( GameInst, Value, Cmd Msg )
 initGame gameName =
     case gameName of
-        Game.TicTacToe ->
-            initGameInst TicTacToe.engine
+        GameList.TicTacToe ->
+            initGameInst Game.TicTacToe.Engine.engine
 
-        Game.Wordle ->
-            initGameInst Wordle.engine
+        GameList.Wordle ->
+            initGameInst Game.Wordle.Engine.engine
 
 
 initGameInst : Game.Engine state msg -> ( GameInst, Value, Cmd Msg )
@@ -105,7 +106,7 @@ type alias Model =
 
 init : String -> ( Model, Cmd Msg )
 init gameNameStr =
-    case Game.gameFromString gameNameStr of
+    case GameList.gameFromString gameNameStr of
         Just gameName ->
             let
                 ( game, publicState, cmd ) =

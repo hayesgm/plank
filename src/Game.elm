@@ -6,49 +6,6 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 
 
-type GameName
-    = TicTacToe
-    | Wordle
-
-
-allGames : List GameName
-allGames =
-    [ TicTacToe, Wordle ]
-
-
-gameToString : GameName -> String
-gameToString gameName =
-    case gameName of
-        TicTacToe ->
-            "tic-tac-toe"
-
-        Wordle ->
-            "wordle"
-
-
-gameReflect : GameName -> String
-gameReflect gameName =
-    case gameName of
-        TicTacToe ->
-            "TicTacToe"
-
-        Wordle ->
-            "Wordle"
-
-
-gameFromString : String -> Maybe GameName
-gameFromString gameName =
-    case gameName of
-        "tic-tac-toe" ->
-            Just TicTacToe
-
-        "wordle" ->
-            Just Wordle
-
-        _ ->
-            Nothing
-
-
 type alias PlayerId =
     String
 
@@ -70,19 +27,15 @@ type InboundMsg engineMsg gameMsg
 
 type alias Game model state engineMsg gameMsg =
     { init : PlayerId -> state -> ( model, Maybe (GameMsg engineMsg gameMsg), Cmd (GameMsg engineMsg gameMsg) )
-    , update : InboundMsg engineMsg gameMsg -> model -> ( model, Cmd (GameMsg engineMsg gameMsg) )
-    , view : AssetMapping -> model -> Html (GameMsg engineMsg gameMsg)
+    , update : gameMsg -> model -> state -> ( model, Cmd (GameMsg engineMsg gameMsg) )
+    , view : AssetMapping -> model -> state -> Html (GameMsg engineMsg gameMsg)
     , css : AssetMapping -> Maybe String
-    , subscriptions : model -> Sub (GameMsg engineMsg gameMsg)
+    , subscriptions : model -> state -> Sub (GameMsg engineMsg gameMsg)
     , gameMsgEncoder : gameMsg -> Value
     , gameMsgDecoder : Decoder gameMsg
-    , engineMsgEncoder : engineMsg -> Value
-    , engineMsgDecoder : Decoder engineMsg
     , modelEncoder : model -> Value
     , modelDecoder : Decoder model
-    , stateEncoder : state -> Value
-    , stateDecoder : Decoder state
-    , setGameState : state -> model -> model
+    , engine : Engine state engineMsg
     }
 
 
@@ -96,37 +49,6 @@ type alias Engine state msg =
     , stateDecoder : Decoder state
     , getPublicState : state -> state
     }
-
-
-type alias GameInfo =
-    { gameName : GameName
-    , gameId : String
-    , gameState : Value
-    , playerId : String
-    }
-
-
-gameNameDecoder : Decoder GameName
-gameNameDecoder =
-    Decode.string
-        |> Decode.andThen
-            (\n ->
-                case gameFromString n of
-                    Just g ->
-                        Decode.succeed g
-
-                    _ ->
-                        Decode.fail ("Unknown game " ++ n)
-            )
-
-
-gameInfoDecoder : Decoder GameInfo
-gameInfoDecoder =
-    Decode.map4 GameInfo
-        (Decode.field "gameName" gameNameDecoder)
-        (Decode.field "gameId" Decode.string)
-        (Decode.field "gameState" Decode.value)
-        (Decode.field "playerId" Decode.string)
 
 
 type alias AssetMapping =

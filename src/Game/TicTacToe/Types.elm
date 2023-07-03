@@ -22,8 +22,7 @@ type ViewMsg
 
 
 type alias Model =
-    { state : State
-    , playerId : PlayerId
+    { playerId : PlayerId
     , time : Int
     }
 
@@ -77,9 +76,8 @@ decodeEngineMsgHelp constructor =
          Decode.fail <| "Unknown constructor for type EngineMsg: " ++ other
 
 decodeModel =
-   Decode.map3
+   Decode.map2
       Model
-         ( Decode.field "state" decodeState )
          ( Decode.field "playerId" decodePlayerId )
          ( Decode.field "time" Decode.int )
 
@@ -156,8 +154,7 @@ encodeMaybePlayer a =
 
 encodeModel a =
    Encode.object
-      [ ("state", encodeState a.state)
-      , ("playerId", encodePlayerId a.playerId)
+      [ ("playerId", encodePlayerId a.playerId)
       , ("time", Encode.int a.time)
       ]
 
@@ -191,6 +188,7 @@ encodeTile a =
 encodeViewMsg (Tock a1) =
    encodePosix a1 
 -- [generator-end]
+
 encodePosix : Posix -> Value
 encodePosix =
     Time.posixToMillis >> Encode.int
