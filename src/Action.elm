@@ -15,13 +15,13 @@ port giveState : Value -> Cmd msg
 port receiveState : (Value -> msg) -> Sub msg
 
 
-port joinGame : String -> Cmd msg
+port joinGame : ( String, String ) -> Cmd msg
 
 
 port gameConnected : (Value -> msg) -> Sub msg
 
 
-port newGame : String -> Cmd msg
+port newGame : ( String, String ) -> Cmd msg
 
 
 port newGameResp : (Value -> msg) -> Sub msg

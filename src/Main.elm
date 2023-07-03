@@ -16,6 +16,7 @@ import Html.Events exposing (onClick, onInput)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
 import Routes exposing (Route)
+import Session exposing (Session)
 import Url exposing (Url)
 
 
@@ -29,6 +30,7 @@ type Msg
     | JoinGame String
     | LinkClicked Browser.UrlRequest
     | UrlChanged Url
+    | SetSession (Result Decode.Error Session)
 
 
 main : Program Value Model Msg
@@ -47,6 +49,7 @@ type alias Model =
     { game : Maybe (GameInst Msg)
     , inputGameId : String
     , assetMapping : String -> Game.AssetMapping
+    , session : Maybe Session
     , key : Nav.Key
     , route : Routes.Route
     }
@@ -56,12 +59,20 @@ init : Value -> Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
     let
         assetMapping =
-            case Decode.decodeValue Game.decodeAssetMapping flags of
+            case Decode.decodeValue (Decode.field "assetMapping" Game.decodeAssetMapping) flags of
                 Ok x ->
                     x
 
                 Err err ->
                     \pkg asset -> Nothing
+
+        session =
+            case Decode.decodeValue (Decode.field "session" Session.decodeMaybeSession) flags of
+                Ok x ->
+                    x
+
+                Err err ->
+                    Nothing
 
         route =
             Routes.getRoute url
@@ -69,12 +80,16 @@ init flags url key =
     ( { game = Nothing
       , inputGameId = ""
       , assetMapping = assetMapping
+      , session = session
       , key = key
       , route = route
       }
-    , case route of
-        Routes.Game gameId ->
-            Action.joinGame gameId
+    , case ( session, route ) of
+        ( Just { nonce }, Routes.Game gameId ) ->
+            Action.joinGame ( nonce, gameId )
+
+        ( Nothing, _ ) ->
+            Session.sessionGuestLogin ()
 
         _ ->
             Cmd.none
@@ -156,21 +171,34 @@ update msg model =
             ( { model | inputGameId = inputGameId }, Cmd.none )
 
         NewGame gameName ->
-            ( model, Action.newGame (GameList.gameToString gameName) )
+            case model.session of
+                Just { nonce } ->
+                    ( model, Action.newGame ( nonce, GameList.gameToString gameName ) )
+
+                _ ->
+                    ( model, Cmd.none )
 
         JoinGame "" ->
             ( model, Cmd.none )
 
         JoinGame gameId ->
-            ( model, Cmd.batch [ Action.joinGame gameId, navigateToGame model.key gameId ] )
+            case model.session of
+                Just { nonce } ->
+                    ( model, Cmd.batch [ Action.joinGame ( nonce, gameId ), navigateToGame model.key gameId ] )
+
+                _ ->
+                    ( model, Cmd.none )
 
         NewGameResp v ->
-            case Decode.decodeValue (Decode.field "gameId" Decode.string) v of
-                Ok gameId ->
-                    ( model, Cmd.batch [ Action.joinGame gameId, navigateToGame model.key gameId ] )
+            case ( model.session, Decode.decodeValue (Decode.field "gameId" Decode.string) v ) of
+                ( Just { nonce }, Ok gameId ) ->
+                    ( model, Cmd.batch [ Action.joinGame ( nonce, gameId ), navigateToGame model.key gameId ] )
 
-                Err err ->
+                ( _, Err err ) ->
                     ( model, log ("Error new game response: " ++ Decode.errorToString err) )
+
+                _ ->
+                    ( model, Cmd.none )
 
         GameConnected gameInfoVal ->
             case Decode.decodeValue GameInfo.gameInfoDecoder gameInfoVal of
@@ -238,6 +266,21 @@ update msg model =
             , Cmd.none
             )
 
+        SetSession (Err err) ->
+            ( model, log (Decode.errorToString err) )
+
+        SetSession (Ok session) ->
+            let
+                cmd =
+                    case model.route of
+                        Routes.Game gameId ->
+                            Action.joinGame ( session.nonce, gameId )
+
+                        _ ->
+                            Cmd.none
+            in
+            ( { model | session = Just session }, cmd )
+
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -246,6 +289,7 @@ subscriptions model =
         , Action.receiveAction (encodeInboundMsg >> InboundMsg True)
         , Action.gameConnected GameConnected
         , Action.newGameResp NewGameResp
+        , Session.sessionReceive (Decode.decodeValue Session.decodeSession >> SetSession)
         , case model.game of
             Just game ->
                 game.subscriptions game.model game.state

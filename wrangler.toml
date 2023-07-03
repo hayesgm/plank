@@ -2,8 +2,12 @@ name = "plank-server"
 main = "./dist/assets/server.js"
 compatibility_date = "2022-09-08"
 
+kv_namespaces = [
+    { binding = "plank_guests", id = "85df4082b4c3444c94587349453df1d3", preview_id = "22899bf2ed764b3b9383f5d61e5b34a8" }
+]
+
 [durable_objects]
-bindings = [{name = "PLANK", class_name = "Plank"}]
+bindings = [{name = "plank", class_name = "Plank"}]
 
 [[migrations]]
 tag = "v1" # Should be unique for each entry

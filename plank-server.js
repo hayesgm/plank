@@ -2,6 +2,8 @@ import { Elm } from './src/Server.elm'
 
 // Worker
 
+const GUEST_TTL = 60 * 60; // 1 hour
+
 export default {
   async fetch(request, env) {
     return await handleRequest(request, env);
@@ -12,6 +14,10 @@ function getRandomId(sz = 8) {
   let id = new Uint8Array(sz);
   crypto.getRandomValues(id);
   return [...id].map((x) => x.toString(16)).join('');
+}
+
+function getRandomNonce() {
+  return getRandomId(30);
 }
 
 // TODO: Check for uniqueness
@@ -32,6 +38,18 @@ function jsonResp(res) {
   });
 }
 
+function notFound() {
+  return new Response("Not found", {status: 404});
+}
+
+function forbidden() {
+  return new Response("Forbidden", {status: 403});
+}
+
+function getPlank(gameId, env) {
+  return env.plank.get(env.plank.idFromName(gameId));
+}
+
 async function handleRequest(request, env) {
   let url = new URL(request.url);
   let pathnames = url.pathname.split('/').filter((x) => x !== '');
@@ -40,6 +58,16 @@ async function handleRequest(request, env) {
   switch (prefix) {
   case undefined:
     return new Response("Welcome to Plank.");
+  case "login":
+    if (pathnames[0] === 'guest') {
+      // Create a new guest account for user
+      let playerId = generatePlayerId();
+      let nonce = getRandomNonce();
+      await env.plank_guests.put(nonce, playerId, {expirationTtl: GUEST_TTL});
+      return jsonResp({playerId, nonce});
+    } else {
+      return notFound();
+    }
   case "game":
       if (pathnames[0] === 'new') {
         let gameName = pathnames[1];
@@ -47,15 +75,26 @@ async function handleRequest(request, env) {
         // Generate a unique new Game ID
         let gameId = generateGameId();
 
-        let plank = env.PLANK.get(env.PLANK.idFromName(gameId));
-        return await plank.fetch(`${url.origin}/initialize/${gameName}/${gameId}`);
+        // New blank
+        let plank = getPlank(gameId, env);
+
+        let plankRequest = new Request(
+          `${url.origin}/initialize/${gameName}/${gameId}`
+          , request);
+
+        return await plank.fetch(plankRequest);
       } else if (pathnames[0] === 'connect') {
         let gameId = pathnames[1];
-        let plank = env.PLANK.get(env.PLANK.idFromName(gameId));
+
+        // Should be existing
+        // TODO: Check?
+        let plank = getPlank(gameId, env);
         return await plank.fetch(request);
+      } else {
+        return notFound();
       }
   default:
-    return new Response("Not found", {status: 404});
+    return notFound();
   }
 }
 
@@ -63,13 +102,52 @@ async function handleRequest(request, env) {
 export class Plank {
   constructor(state, env) {
     this.state = state;
+    this.env = env;
   }
 
   log(...msg) {
-    console.log(`[Plank][${this.gameName}][${this.gameId}]`, ...msg);
+    let header = `[Plank]`;
+    if (this.gameName) {
+      header += `[${this.gameName}]`;
+    }
+    if (this.gameId) {
+      header += `[${this.gameId}]`
+    }
+    console.log(header, ...msg);
   }
 
-  async initialize(gameId, gameName) {
+  async auth(request) {
+    let nonce;
+    
+    let authHeader = request.headers.get("Authorization");
+    if (authHeader !== null) {
+      let match = authHeader.match(/Bearer (?<token>\w+)/i);
+      if (match) {
+        nonce = match.groups.token;
+      }
+    }
+
+    let wsAuthHeader = request.headers.get("Sec-WebSocket-Protocol");
+    if (nonce === undefined && wsAuthHeader !== null) {
+      nonce = wsAuthHeader
+    }
+
+    if (nonce) {
+      let playerId = await this.env.plank_guests.get(nonce);
+      this.log('Authenticated Guest:', playerId);
+      if (playerId !== null) {
+        return {
+          playerId
+        };
+      }
+    }
+
+    return {
+      response: forbidden()
+    }
+  }
+
+  async initialize(playerId, gameId, gameName) {
     this.gameId = gameId;
     this.gameName = gameName;
 
@@ -113,15 +191,14 @@ export class Plank {
     this.game.ports.receiveAction.send([playerId, action]);
   }
 
-  async upgrade(request) {
-    const upgradeHeader = request.headers.get("Upgrade")
+  async upgrade(playerId, request) {
+    let upgradeHeader = request.headers.get("Upgrade")
     if (upgradeHeader !== "websocket") {
       return new Response("Expected websocket", { status: 400 })
     }
 
-    const webSocketPair = new WebSocketPair();
-    const [client, server] = Object.values(webSocketPair);
-    const playerId = generatePlayerId();
+    let webSocketPair = new WebSocketPair();
+    let [client, server] = Object.values(webSocketPair);
 
     // TODO: Maybe group these calls?
     this.game.ports.giveState.subscribe((state) => {
@@ -182,14 +259,20 @@ export class Plank {
       return handleOptions(request);
     }
 
+    let authRes = await this.auth(request);
+    if ('response' in authRes) {
+      return authRes.response;
+    }
+    let { playerId } = authRes;
+
     let url = new URL(request.url);
     let pathnames = url.pathname.split('/').filter((x) => x !== '');
     let prefix = pathnames.shift();
     if (prefix === 'initialize') {
       let [gameName, gameId] = pathnames;
-      return this.initialize(gameId, gameName);
+      return this.initialize(playerId, gameId, gameName);
     } else {
-      return this.upgrade(request);
+      return this.upgrade(playerId, request);
     }
   }
 }

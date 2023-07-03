@@ -1,21 +1,42 @@
 import './style.css'
 import { Elm } from './src/Main.elm'
 
-const imagesUrl =  import.meta.glob("./src/Game/*/assets/*.(jpg|JPG|png|PNG|svg|css)", { as: "url", eager: true });
+function getSession() {
+  let sessionEnc = sessionStorage.getItem('session');
+  if (sessionEnc) {
+    return JSON.parse(sessionEnc);
+  } else {
+    return null;
+  }
+}
 
+const assetMapping =  import.meta.glob("./src/Game/*/assets/*.(jpg|JPG|png|PNG|svg|css)", { as: "url", eager: true });
 const ssl = import.meta.env.VITE_PLANK_SSL === 'true' ?? false;
 const host = import.meta.env.VITE_PLANK_HOST ?? 'localhost:2233';
-console.log({imagesUrl})
+const session = getSession();
+
+console.log({session});
 const app = Elm.Main.init({
-  flags: imagesUrl,
+  flags: {
+    assetMapping,
+    session
+  },
   node: document.getElementById('root'),
 });
 
 let websocket;
 
-app.ports.joinGame.subscribe((gameId) => {
+app.ports.sessionGuestLogin.subscribe(async () => {
+  console.log("Login as guest");
+  let resp = await fetch(`http${ssl ? 's' : ''}://${host}/login/guest`);
+  let json = await resp.json();
+  sessionStorage.setItem('session', JSON.stringify(json));
+  app.ports.sessionReceive.send(json);
+});
+
+app.ports.joinGame.subscribe(([nonce, gameId]) => {
   console.log(`Joining game: ${gameId}`);
-  websocket = new WebSocket(`ws${ssl ? 's' : ''}://${host}/game/connect/${gameId}`);
+  websocket = new WebSocket(`ws${ssl ? 's' : ''}://${host}/game/connect/${gameId}`, [ nonce ]);
 
   websocket.addEventListener('message', event => {
     console.log(`Message received from ${gameId} server`, event.data);
@@ -55,9 +76,9 @@ app.ports.loadCss.subscribe((asset) => {
   document.getElementsByTagName('head')[0].appendChild(cssEl);
 });
 
-app.ports.newGame.subscribe(async (gameName) => {
-  console.log("New game", gameName);
-  let resp = await fetch(`http${ssl ? 's' : ''}://${host}/game/new/${gameName}`);
+app.ports.newGame.subscribe(async ([nonce, gameName]) => {
+  console.log("New game", gameName, nonce);
+  let resp = await fetch(`http${ssl ? 's' : ''}://${host}/game/new/${gameName}`, { headers: {'Authorization': `Bearer ${nonce}`}});
   let json = await resp.json();
   app.ports.newGameResp.send(json);
 });
