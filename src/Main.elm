@@ -7,8 +7,8 @@ import Console exposing (log)
 import Game
 import Game.TicTacToe.Game as TicTacToe
 import Game.Wordle.Game as Wordle
-import Html exposing (Html, button, div, input, text)
-import Html.Attributes exposing (placeholder, value)
+import Html exposing (Html, a, button, div, input, text)
+import Html.Attributes exposing (href, placeholder, value)
 import Html.Events exposing (onClick, onInput)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
@@ -127,21 +127,23 @@ viewGame : String -> Model -> Browser.Document Msg
 viewGame gameId model =
     { title = "Plank " ++ gameId
     , body =
-        case model.game of
-            Just game ->
-                [ text game.gameId
-                , game.view game.model
-                ]
+        [ a [ href "/" ] [ text "Home 🪵" ] ]
+            ++ (case model.game of
+                    Just game ->
+                        [ text game.gameId
+                        , game.view game.model
+                        ]
 
-            Nothing ->
-                [ viewNotFoundHtml model ]
+                    Nothing ->
+                        [ viewNotFoundHtml model ]
+               )
     }
 
 
 viewNotFound : Model -> Browser.Document Msg
 viewNotFound model =
     { title = "Plank - Not Found"
-    , body = [ viewNotFoundHtml model ]
+    , body = [ a [ href "/" ] [ text "Home 🪵" ] ] ++ [ viewNotFoundHtml model ]
     }
 
 

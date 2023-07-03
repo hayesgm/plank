@@ -10,6 +10,11 @@ import Json.Encode as Encode exposing (Value)
 import List.Extra as ListEx
 
 
+
+-- TODO: Check words in dictionary (seen here: https://github.com/tabatkins/wordle-list/blob/main/words)
+-- TODO: Figure out yellow squares
+
+
 engine : Game.Engine State EngineMsg
 engine =
     { init = init
@@ -19,6 +24,7 @@ engine =
     , msgDecoder = Types.decodeEngineMsg
     , stateEncoder = Types.encodeState
     , stateDecoder = Types.decodeState
+    , getPublicState = getPublicState
     , publicStateEncoder = Types.encodeState
     , publicStateDecoder = Types.decodeState
     }
@@ -76,3 +82,8 @@ update msg model =
 
         Game.SystemMsg internalMsg ->
             updateInternal internalMsg Nothing model
+
+
+getPublicState : State -> State
+getPublicState state =
+    { state | target = Nothing }

@@ -7,7 +7,7 @@ import Game.Wordle.Engine as Engine exposing (update)
 import Game.Wordle.Helpers as Helpers exposing (Status(..), getStatus)
 import Game.Wordle.Types as Types exposing (AnnotatedGuess, Annotation(..), EngineMsg(..), Model, State, ViewMsg(..))
 import Html exposing (Html, button, div, img, input, span, text)
-import Html.Attributes exposing (placeholder, src, type_, value)
+import Html.Attributes exposing (class, placeholder, src, type_, value)
 import Html.Events exposing (onBlur, onClick, onFocus, onInput)
 
 
@@ -84,17 +84,19 @@ showGuess guess =
     div []
         (List.map
             (\( letter, annotation ) ->
-                text
-                    (case annotation of
-                        Green ->
-                            "+" ++ String.fromChar letter
+                let
+                    colorClass =
+                        case annotation of
+                            Green ->
+                                "green"
 
-                        Yellow ->
-                            "~" ++ String.fromChar letter
+                            Yellow ->
+                                "yellow"
 
-                        Grey ->
-                            "-" ++ String.fromChar letter
-                    )
+                            Grey ->
+                                "grey"
+                in
+                span [ class "square", class colorClass ] [ text (String.fromChar letter) ]
             )
             guess
         )

@@ -6,7 +6,7 @@ import Game exposing (EngineMsg(..))
 import Game.TicTacToe.Engine as TicTacToe
 import Game.Wordle.Engine as Wordle
 import Json.Decode as Decode
-import Json.Encode exposing (Value)
+import Json.Encode as Encode exposing (Value)
 import Platform exposing (worker)
 
 
@@ -56,7 +56,7 @@ initGameInst game =
                             ( stateNext, cmdNext ) =
                                 game.update gameMsg statePre
                         in
-                        Ok ( game.stateEncoder stateNext, game.publicStateEncoder stateNext, Cmd.map gameMsgWrapper cmdNext )
+                        Ok ( game.stateEncoder stateNext, game.publicStateEncoder (game.getPublicState stateNext), Cmd.map gameMsgWrapper cmdNext )
 
                     ( Err msgErr, _ ) ->
                         Err ("Error decoding msg " ++ Decode.errorToString msgErr)
@@ -125,7 +125,8 @@ update msg model =
                 GameMsg playerId childMsg ->
                     case game.update childMsg playerId game.state of
                         Ok ( stateNext, publicStateNext, cmd ) ->
-                            if game.state /= stateNext then
+                            -- TODO: Better way to compare versus encoding
+                            if Encode.encode 0 stateNext /= Encode.encode 0 game.state then
                                 ( { model | game = Just { game | state = stateNext } }, Cmd.batch [ giveState publicStateNext, cmd ] )
 
                             else
