@@ -1,12 +1,12 @@
-module Game.TicTacToe.Game exposing (game)
+module Game.Connect4.Game exposing (game)
 
 import Dict exposing (Dict)
 import Game exposing (GameMsg(..), InboundMsg(..), PlayerId)
-import Game.TicTacToe.Engine exposing (engine)
-import Game.TicTacToe.Types as Types exposing (EngineMsg(..), Model, Player(..), State, Tile(..), ViewMsg(..))
-import Helpers exposing (chunk)
-import Html exposing (Html, div, img, span, text)
-import Html.Attributes exposing (src)
+import Game.Connect4.Engine exposing (engine)
+import Game.Connect4.Helpers exposing (cols)
+import Game.Connect4.Types as Types exposing (EngineMsg(..), Model, Player(..), State, Tile(..), ViewMsg(..))
+import Html exposing (Html, div, span, text)
+import Html.Attributes exposing (class)
 import Html.Events exposing (onClick)
 import Time
 
@@ -45,25 +45,22 @@ subscriptions _ _ =
 
 
 view : Game.AssetMapping -> Model -> State -> Html (GameMsg EngineMsg ViewMsg)
-view asset model state =
+view _ model state =
     div []
-        [ text "Tic Tac Toe"
-        , img [ src (Maybe.withDefault "" (asset "tic-tac-toe.svg")) ] []
+        [ text "Connect 4"
         , text (String.fromInt model.time)
         , text (descPlayer model.playerId state.players)
         , text (Maybe.map (\winner -> " - " ++ showPlayer winner ++ " wins! 🎊") state.winner |> Maybe.withDefault "")
         , div []
-            (state.tiles
-                |> List.indexedMap showTile
-                |> chunk 3
-                |> List.map (div [])
+            (cols state.tiles
+                |> List.indexedMap showCol
             )
         ]
 
 
 css : Game.AssetMapping -> Maybe String
 css asset =
-    asset "tic-tac-toe.css"
+    asset "connect4.css"
 
 
 update : ViewMsg -> Model -> State -> ( Model, Cmd (GameMsg EngineMsg ViewMsg) )
@@ -73,27 +70,56 @@ update msg model _ =
             ( { model | time = model.time + 1 }, Cmd.none )
 
 
-showTile : Int -> Tile -> Html (GameMsg EngineMsg ViewMsg)
-showTile pos tile =
+showTile : Tile -> Html (GameMsg EngineMsg ViewMsg)
+showTile tile =
     case tile of
         Open ->
-            span [ onClick (ForEngine (Types.Claim pos)) ] [ text " [ ] " ]
+            span [] [ text " [ ] " ]
 
-        Taken X ->
-            span [] [ text " [X] " ]
+        Taken p ->
+            span [] [ text (String.concat [ " [", showPlayer p, "] " ]) ]
 
-        Taken O ->
-            span [] [ text " [O] " ]
+
+showCol : Int -> List Tile -> Html (GameMsg EngineMsg ViewMsg)
+showCol col tiles =
+    let
+        maybeAvailablePos : List Tile -> Maybe Int
+        maybeAvailablePos tiles_ =
+            List.reverse tiles_
+                |> List.head
+                |> Maybe.andThen
+                    (\last ->
+                        let
+                            row =
+                                List.length tiles_ - 1
+                        in
+                        case last of
+                            Open ->
+                                Just (col + (7 * row))
+
+                            _ ->
+                                maybeAvailablePos (List.take row tiles_)
+                    )
+
+        msg =
+            case maybeAvailablePos tiles of
+                Just pos ->
+                    [ onClick (ForEngine (Types.Claim pos)) ]
+
+                Nothing ->
+                    []
+    in
+    div (class "col" :: msg) (List.map showTile tiles)
 
 
 showPlayer : Player -> String
 showPlayer p =
     case p of
         X ->
-            "X"
+            "🔴"
 
         O ->
-            "O"
+            "🟡"
 
 
 descPlayer : PlayerId -> Dict PlayerId Player -> String

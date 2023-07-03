@@ -1,9 +1,9 @@
-module Game.TicTacToe.Engine exposing (engine, update)
+module Game.Connect4.Engine exposing (engine, update)
 
 import Dict
 import Game exposing (GameMsg(..), PlayerId)
-import Game.TicTacToe.Helpers exposing (checkWinner, otherPlayer)
-import Game.TicTacToe.Types as Types exposing (EngineMsg(..), Player(..), State, Tile(..))
+import Game.Connect4.Helpers exposing (checkWinner, otherPlayer)
+import Game.Connect4.Types as Types exposing (EngineMsg(..), Player(..), State, Tile(..))
 import List.Extra as ListEx
 import Time
 
@@ -24,7 +24,7 @@ engine =
 init : ( State, Cmd EngineMsg )
 init =
     ( { turn = X
-      , tiles = List.repeat 9 Open
+      , tiles = List.repeat 42 Open
       , winner = Nothing
       , players = Dict.empty
       }
