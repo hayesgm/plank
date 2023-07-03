@@ -20,8 +20,6 @@ engine =
     , stateEncoder = Types.encodeState
     , stateDecoder = Types.decodeState
     , getPublicState = identity
-    , publicStateEncoder = Types.encodeState
-    , publicStateDecoder = Types.decodeState
     }
 
 

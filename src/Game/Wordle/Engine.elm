@@ -25,8 +25,6 @@ engine =
     , stateEncoder = Types.encodeState
     , stateDecoder = Types.decodeState
     , getPublicState = getPublicState
-    , publicStateEncoder = Types.encodeState
-    , publicStateDecoder = Types.decodeState
     }
 
 

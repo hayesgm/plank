@@ -56,7 +56,7 @@ initGameInst game =
                             ( stateNext, cmdNext ) =
                                 game.update gameMsg statePre
                         in
-                        Ok ( game.stateEncoder stateNext, game.publicStateEncoder (game.getPublicState stateNext), Cmd.map gameMsgWrapper cmdNext )
+                        Ok ( game.stateEncoder stateNext, game.stateEncoder (game.getPublicState stateNext), Cmd.map gameMsgWrapper cmdNext )
 
                     ( Err msgErr, _ ) ->
                         Err ("Error decoding msg " ++ Decode.errorToString msgErr)
@@ -71,7 +71,7 @@ initGameInst game =
       , update = update_
       , subscriptions = subscriptions_
       }
-    , game.publicStateEncoder initState
+    , game.stateEncoder initState
     , Cmd.map gameMsgWrapper initCmd
     )
 

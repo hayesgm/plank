@@ -95,8 +95,6 @@ type alias Engine state msg =
     , stateEncoder : state -> Value
     , stateDecoder : Decoder state
     , getPublicState : state -> state
-    , publicStateEncoder : state -> Value
-    , publicStateDecoder : Decoder state
     }
 
 
