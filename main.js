@@ -5,6 +5,7 @@ const imagesUrl =  import.meta.glob("./src/Game/*/assets/*.(jpg|JPG|png|PNG|svg|
 
 const ssl = import.meta.env.VITE_PLANK_SSL === 'true' ?? false;
 const host = import.meta.env.VITE_PLANK_HOST ?? 'localhost:2233';
+console.log({imagesUrl})
 const app = Elm.Main.init({
   flags: imagesUrl,
   node: document.getElementById('root'),

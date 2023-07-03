@@ -92,6 +92,15 @@ export class Plank {
       resolve();
     })
 
+    // TODO: We shouldn't really add ports, but it's worth understanding
+    this.game.ports.wordleFetch.subscribe(async () => {
+      console.log("wordle fetch!!");
+      let res = await fetch('https://www.nytimes.com/svc/wordle/v2/2023-07-02.json');
+      let json = await res.json();
+      console.log("solution", json.solution);
+      this.game.ports.wordleGot.send(json.solution);
+    })
+
     await gameStateSet;
 
     return jsonResp({gameId});

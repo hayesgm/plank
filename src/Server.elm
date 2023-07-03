@@ -4,6 +4,7 @@ import Action exposing (giveState, receiveAction)
 import Console exposing (log)
 import Game exposing (EngineMsg(..))
 import Game.TicTacToe.Engine as TicTacToe
+import Game.Wordle.Engine as Wordle
 import Json.Decode as Decode
 import Json.Encode exposing (Value)
 import Platform exposing (worker)
@@ -25,6 +26,9 @@ initGame gameName =
     case gameName of
         Game.TicTacToe ->
             initGameInst TicTacToe.engine
+
+        Game.Wordle ->
+            initGameInst Wordle.engine
 
 
 initGameInst : Game.Engine state msg -> ( GameInst, Value, Cmd Msg )

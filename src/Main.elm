@@ -6,6 +6,7 @@ import Browser.Navigation as Nav
 import Console exposing (log)
 import Game
 import Game.TicTacToe.Game as TicTacToe
+import Game.Wordle.Game as Wordle
 import Html exposing (Html, button, div, input, text)
 import Html.Attributes exposing (placeholder, value)
 import Html.Events exposing (onClick, onInput)
@@ -285,6 +286,9 @@ initGame gameName gameId gameState playerId assetMapping =
     case gameName of
         Game.TicTacToe ->
             initGameInst TicTacToe.game gameName gameId gameState playerId assetMapping
+
+        Game.Wordle ->
+            initGameInst Wordle.game gameName gameId gameState playerId assetMapping
 
 
 initGameInst : Game.Game model state engineMsg gameMsg -> Game.GameName -> String -> Value -> String -> (String -> Game.AssetMapping) -> Result String ( GameInst, Maybe Msg, Cmd Msg )

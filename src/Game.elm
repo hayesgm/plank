@@ -8,11 +8,12 @@ import Json.Encode as Encode exposing (Value)
 
 type GameName
     = TicTacToe
+    | Wordle
 
 
 allGames : List GameName
 allGames =
-    [ TicTacToe ]
+    [ TicTacToe, Wordle ]
 
 
 gameToString : GameName -> String
@@ -21,6 +22,9 @@ gameToString gameName =
         TicTacToe ->
             "tic-tac-toe"
 
+        Wordle ->
+            "wordle"
+
 
 gameReflect : GameName -> String
 gameReflect gameName =
@@ -28,12 +32,18 @@ gameReflect gameName =
         TicTacToe ->
             "TicTacToe"
 
+        Wordle ->
+            "Wordle"
+
 
 gameFromString : String -> Maybe GameName
 gameFromString gameName =
     case gameName of
         "tic-tac-toe" ->
             Just TicTacToe
+
+        "wordle" ->
+            Just Wordle
 
         _ ->
             Nothing
