@@ -2,8 +2,11 @@ import { resolve } from 'path'
 import { defineConfig } from 'vite'
 import elmPlugin from 'vite-plugin-elm'
 
-export default defineConfig({
-  plugins: [elmPlugin.plugin({ debug: true, optimize: false })],
+export default defineConfig(({ command, mode }) => ({
+  plugins: [elmPlugin.plugin(
+    mode === 'production'
+      ? { debug: false, optimize: true }
+      : { debug: true, optimize: false })],
   build: {
     rollupOptions: {
       preserveEntrySignatures: 'strict',
@@ -21,4 +24,4 @@ export default defineConfig({
   server: {
     port: '2222'
   }
-})
+}));

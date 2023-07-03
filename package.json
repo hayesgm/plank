@@ -1,22 +1,21 @@
 {
-  "name": "quark-app",
+  "name": "plank",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev-app": "vite",
-    "dev-server": "vite build && wrangler dev --local",
-    "build": "vite build",
+    "dev:app": "vite",
+    "dev:server": "vite build --mode development && wrangler dev --local",
+    "dev:server:watch": "vite build --mode development --watch",
+    "dev:server:start": "wrangler dev --local",
+    "build": "vite build --mode production",
     "preview": "vite preview",
-    "deploy": "vite build --mode prod && wrangler publish && wrangler pages publish dist/",
+    "deploy": "vite build --mode production && wrangler publish && wrangler pages publish dist/",
     "build-types": "npx elm-coder-generator"
   },
   "devDependencies": {
     "elm-coder-generator": "^1.0.3",
     "vite": "^4.3.9",
     "vite-plugin-elm": "^2.8.0"
-  },
-  "dependencies": {
-    "@walletconnect/web3wallet": "^1.8.1"
   }
 }

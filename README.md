@@ -10,7 +10,7 @@ For local development, you need to start a client and a server.
 ### Running the client
 
 ```sh
-npm run dev
+npm run dev:app
 ```
 
 You should have a local server running on (http://localhost:2222/)[http://localhost:2222/].
@@ -23,15 +23,27 @@ The server runs via Wrangler from CloudFlare. First, [install wrangler](https://
 npm install -g wrangler
 ```
 
-Next, build the Elm code and run wrangler:
+Next, build the Elm code and run wrangler. You can do this without code reloading via:
 
 ```sh
-npm run build && wrangler dev --local
+npm run dev:server
 ```
 
-Note: this server does not currently auto-reload. You will need to reload it when you change code, esp. your Elm code.
-
 You should have a server running on [http://127.0.0.1:2233](http://127.0.0.1:2233).
+
+You can also do this with code reloading by running both:
+
+```sh
+npm run dev:server:watch
+```
+
+and
+
+```sh
+npm run dev:server:start
+```
+
+This will automatically reload whenever your JavaScript or Elm code changes. Note: your code reload my break any running game connections.
 
 ## Developing
 

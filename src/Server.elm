@@ -50,15 +50,15 @@ initGameInst game =
                                         SystemMsg msg
 
                             ( stateNext, cmdNext ) =
-                                game.update (Debug.log "gameMsg" gameMsg) statePre
+                                game.update gameMsg statePre
                         in
                         Ok ( game.stateEncoder stateNext, game.publicStateEncoder stateNext, Cmd.map gameMsgWrapper cmdNext )
 
                     ( Err msgErr, _ ) ->
-                        Err (Debug.log "msgErr" ("Error decoding msg " ++ Decode.errorToString msgErr))
+                        Err ("Error decoding msg " ++ Decode.errorToString msgErr)
 
                     ( _, Err stateErr ) ->
-                        Err (Debug.log "stateErr" ("Error decoding state " ++ Decode.errorToString stateErr))
+                        Err ("Error decoding state " ++ Decode.errorToString stateErr)
 
         subscriptions_ =
             Sub.map gameMsgWrapper << game.subscriptions << Result.withDefault initState << Decode.decodeValue game.stateDecoder
@@ -119,16 +119,16 @@ update msg model =
         Just game ->
             case msg of
                 GameMsg playerId childMsg ->
-                    case game.update (Debug.log (Json.Encode.encode 2 childMsg) childMsg) (Debug.log "playerId" playerId) game.state of
+                    case game.update childMsg playerId game.state of
                         Ok ( stateNext, publicStateNext, cmd ) ->
-                            if game.state /= Debug.log ("state next" ++ Json.Encode.encode 2 stateNext) stateNext then
+                            if game.state /= stateNext then
                                 ( { model | game = Just { game | state = stateNext } }, Cmd.batch [ giveState publicStateNext, cmd ] )
 
                             else
                                 ( { model | game = Just { game | state = stateNext } }, cmd )
 
                         Err err ->
-                            ( model, log (Debug.log "err" err) )
+                            ( model, log err )
 
         Nothing ->
             ( model, Cmd.none )
