@@ -1,6 +1,8 @@
 module GameList exposing (GameName(..), allGames, gameFromString, gameToString, initEngine, initGame)
 
 import Game
+import Game.Connect4.Engine
+import Game.Connect4.Game
 import Game.TicTacToe.Engine
 import Game.TicTacToe.Game
 import Game.Wordle.Engine
@@ -11,18 +13,22 @@ import Json.Encode exposing (Value)
 
 
 type GameName
-    = TicTacToe
+    = Connect4
+    | TicTacToe
     | Wordle
 
 
 allGames : List GameName
 allGames =
-    [ TicTacToe, Wordle ]
+    [ Connect4, TicTacToe, Wordle ]
 
 
 gameToString : GameName -> String
 gameToString gameName =
     case gameName of
+        Connect4 ->
+            "Connect4"
+
         TicTacToe ->
             "TicTacToe"
 
@@ -33,6 +39,9 @@ gameToString gameName =
 gameFromString : String -> Maybe GameName
 gameFromString gameName =
     case gameName of
+        "Connect4" ->
+            Just Connect4
+
         "TicTacToe" ->
             Just TicTacToe
 
@@ -46,6 +55,9 @@ gameFromString gameName =
 initEngine : GameMsgWrapper serverMsg -> GameName -> ( GameServer serverMsg, Value, Cmd serverMsg )
 initEngine msgWrapper gameName =
     case gameName of
+        Connect4 ->
+            initGameServer Game.Connect4.Engine.engine msgWrapper
+
         TicTacToe ->
             initGameServer Game.TicTacToe.Engine.engine msgWrapper
 
@@ -66,6 +78,9 @@ initGame msgWrapper gameName gameId gameState playerId assetMapping =
             }
     in
     case gameName of
+        Connect4 ->
+            initGameInst Game.Connect4.Game.game gameInstData
+
         TicTacToe ->
             initGameInst Game.TicTacToe.Game.game gameInstData
 

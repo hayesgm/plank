@@ -26,3 +26,5 @@ dist-ssr
 elm-stuff
 .env.local
 
+.wrangler/
+

@@ -1,7 +1,7 @@
 module Game.TicTacToe.Helpers exposing (..)
 
 import Game.TicTacToe.Types exposing (Player(..), Tile(..))
-import List.Extra as ListEx
+import Helpers exposing (chunk, remap)
 
 
 otherPlayer : Player -> Player
@@ -47,34 +47,9 @@ checkWinner tiles =
             Nothing
 
 
-chunk : Int -> List a -> List (List a)
-chunk n l =
-    if List.isEmpty l then
-        []
-
-    else
-        List.take n l :: chunk n (List.drop n l)
-
-
 rows : List Tile -> List (List Tile)
 rows tiles =
     chunk 3 tiles
-
-
-remap : List a -> List Int -> List a
-remap l mapping =
-    mapping
-        |> List.foldl
-            (\el acc ->
-                case ListEx.getAt el l of
-                    Just x ->
-                        x :: acc
-
-                    _ ->
-                        acc
-            )
-            []
-        |> List.reverse
 
 
 cols : List Tile -> List (List Tile)

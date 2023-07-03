@@ -1,14 +1,13 @@
 module Game.TicTacToe.Game exposing (game)
 
-import Browser
 import Dict exposing (Dict)
 import Game exposing (GameMsg(..), InboundMsg(..), PlayerId)
-import Game.TicTacToe.Engine as Engine exposing (engine)
-import Game.TicTacToe.Helpers as Helpers exposing (chunk)
+import Game.TicTacToe.Engine exposing (engine)
 import Game.TicTacToe.Types as Types exposing (EngineMsg(..), Model, Player(..), State, Tile(..), ViewMsg(..))
-import Html exposing (Html, button, div, img, input, span, text)
-import Html.Attributes exposing (src, type_, value)
-import Html.Events exposing (onBlur, onClick, onFocus, onInput)
+import Helpers exposing (chunk)
+import Html exposing (Html, div, img, span, text)
+import Html.Attributes exposing (src)
+import Html.Events exposing (onClick)
 import Time
 
 
@@ -41,7 +40,7 @@ init playerId state =
 
 
 subscriptions : Model -> State -> Sub (GameMsg EngineMsg ViewMsg)
-subscriptions model state =
+subscriptions _ _ =
     Time.every 10000 (ForSelf << Tock)
 
 
@@ -68,9 +67,9 @@ css asset =
 
 
 update : ViewMsg -> Model -> State -> ( Model, Cmd (GameMsg EngineMsg ViewMsg) )
-update msg model state =
+update msg model _ =
     case msg of
-        Tock t ->
+        Tock _ ->
             ( { model | time = model.time + 1 }, Cmd.none )
 
 
