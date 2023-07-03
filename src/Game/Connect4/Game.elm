@@ -5,9 +5,10 @@ import Game exposing (GameMsg(..), InboundMsg(..), PlayerId)
 import Game.Connect4.Engine exposing (engine)
 import Game.Connect4.Helpers exposing (cols)
 import Game.Connect4.Types as Types exposing (EngineMsg(..), Model, Player(..), State, Tile(..), ViewMsg(..))
-import Html exposing (Html, div, span, text)
+import Html exposing (Html, div, text)
 import Html.Attributes exposing (class)
 import Html.Events exposing (onClick)
+import List.Extra as ListEx
 import Time
 
 
@@ -46,12 +47,24 @@ subscriptions _ _ =
 
 view : Game.AssetMapping -> Model -> State -> Html (GameMsg EngineMsg ViewMsg)
 view _ model state =
+    let
+        isCurrentPlayersTurn =
+            Dict.get model.playerId state.players
+                |> Maybe.map (\player -> player == state.turn)
+                |> Maybe.withDefault False
+
+        boardClass =
+            if isCurrentPlayersTurn then
+                "cols cols--active"
+
+            else
+                "cols"
+    in
     div []
-        [ text "Connect 4"
-        , text (String.fromInt model.time)
-        , text (descPlayer model.playerId state.players)
+        [ div [] [ text "Connect 4" ]
+        , div [] [ text (descPlayer model.playerId state.players) ]
         , text (Maybe.map (\winner -> " - " ++ showPlayer winner ++ " wins! 🎊") state.winner |> Maybe.withDefault "")
-        , div [ class "cols"]
+        , div [ class boardClass ]
             (cols state.tiles
                 |> List.indexedMap showCol
             )
@@ -70,11 +83,19 @@ update msg model _ =
             ( { model | time = model.time + 1 }, Cmd.none )
 
 
-showTile : Tile -> Html (GameMsg EngineMsg ViewMsg)
-showTile tile =
+showTile : Tile -> Bool -> Html (GameMsg EngineMsg ViewMsg)
+showTile tile isNextAvailable =
     case tile of
         Open ->
-            div [] [ text " [   ] " ]
+            let
+                class_ =
+                    if isNextAvailable then
+                        [ class "available" ]
+
+                    else
+                        []
+            in
+            div class_ [ text " [   ] " ]
 
         Taken p ->
             div [] [ text (String.concat [ " [", showPlayer p, "] " ]) ]
@@ -83,8 +104,12 @@ showTile tile =
 showCol : Int -> List Tile -> Html (GameMsg EngineMsg ViewMsg)
 showCol col tiles =
     let
-        maybeAvailablePos : List Tile -> Maybe Int
-        maybeAvailablePos tiles_ =
+        positions =
+            List.repeat 7 col
+                |> List.indexedMap (\row pos -> pos + (7 * row))
+
+        maybeAvailablePos_ : List Tile -> Maybe Int
+        maybeAvailablePos_ tiles_ =
             List.reverse tiles_
                 |> List.head
                 |> Maybe.andThen
@@ -95,21 +120,34 @@ showCol col tiles =
                         in
                         case last of
                             Open ->
-                                Just (col + (7 * row))
+                                ListEx.getAt row positions
 
                             _ ->
-                                maybeAvailablePos (List.take row tiles_)
+                                maybeAvailablePos_ (List.take row tiles_)
                     )
 
+        maybeAvailablePos =
+            maybeAvailablePos_ tiles
+
         msg =
-            case maybeAvailablePos tiles of
+            case maybeAvailablePos of
                 Just pos ->
                     [ onClick (ForEngine (Types.Claim pos)) ]
 
                 Nothing ->
                     []
     in
-    div (class "col" :: msg) (List.map showTile tiles)
+    div (class "col" :: msg)
+        (List.indexedMap
+            (\row tile ->
+                let
+                    isNextAvailable =
+                        ListEx.getAt row positions == maybeAvailablePos
+                in
+                showTile tile isNextAvailable
+            )
+            tiles
+        )
 
 
 showPlayer : Player -> String

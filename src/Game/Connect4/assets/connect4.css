@@ -6,3 +6,11 @@ body {
   align-items: center;
   display: flex;
 }
+
+.cols--active {
+  cursor: pointer;
+}
+
+.cols--active > .col:hover .available {
+  color: red;
+}
