@@ -4,6 +4,12 @@ import { Elm } from './src/Server.elm'
 
 const GUEST_TTL = 60 * 60; // 1 hour
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,HEAD,POST,OPTIONS',
+  'Access-Control-Max-Age': '86400',
+};
+
 export default {
   async fetch(request, env) {
     return await handleRequest(request, env);
@@ -256,7 +262,7 @@ export class Plank {
   async fetch(request) {
     if (request.method === "OPTIONS") {
       // Handle CORS preflight requests
-      return handleOptions(request);
+      return this.handleOptions(request);
     }
 
     let authRes = await this.auth(request);
