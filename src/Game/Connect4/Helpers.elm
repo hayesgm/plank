@@ -108,7 +108,7 @@ cols tiles =
         , 34
         , 41
         ]
-        |> chunk 7
+        |> chunk 6
 
 
 diags : List Tile -> List (List Tile)

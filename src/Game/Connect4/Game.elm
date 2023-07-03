@@ -51,7 +51,7 @@ view _ model state =
         , text (String.fromInt model.time)
         , text (descPlayer model.playerId state.players)
         , text (Maybe.map (\winner -> " - " ++ showPlayer winner ++ " wins! 🎊") state.winner |> Maybe.withDefault "")
-        , div []
+        , div [ class "cols"]
             (cols state.tiles
                 |> List.indexedMap showCol
             )
@@ -74,10 +74,10 @@ showTile : Tile -> Html (GameMsg EngineMsg ViewMsg)
 showTile tile =
     case tile of
         Open ->
-            span [] [ text " [ ] " ]
+            div [] [ text " [   ] " ]
 
         Taken p ->
-            span [] [ text (String.concat [ " [", showPlayer p, "] " ]) ]
+            div [] [ text (String.concat [ " [", showPlayer p, "] " ]) ]
 
 
 showCol : Int -> List Tile -> Html (GameMsg EngineMsg ViewMsg)
