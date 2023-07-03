@@ -2,25 +2,27 @@ module Game.TicTacToe.Game exposing (game)
 
 import Browser
 import Dict exposing (Dict)
-import Game exposing (GameMsg(..), PlayerId)
+import Game exposing (GameMsg(..), InboundMsg(..), PlayerId)
 import Game.TicTacToe.Engine as Engine exposing (update)
 import Game.TicTacToe.Helpers as Helpers exposing (chunk)
-import Game.TicTacToe.Types as Types exposing (Model, Player(..), State, Tile(..), ViewMsg(..))
+import Game.TicTacToe.Types as Types exposing (EngineMsg(..), Model, Player(..), State, Tile(..), ViewMsg(..))
 import Html exposing (Html, button, div, img, input, span, text)
 import Html.Attributes exposing (src, type_, value)
 import Html.Events exposing (onBlur, onClick, onFocus, onInput)
 import Time
 
 
-game : Game.Game Model State ViewMsg
+game : Game.Game Model State EngineMsg ViewMsg
 game =
     { view = view
     , css = css
     , init = init
     , update = update
     , subscriptions = subscriptions
-    , msgEncoder = Types.encodeViewMsg
-    , msgDecoder = Types.decodeViewMsg
+    , gameMsgEncoder = Types.encodeViewMsg
+    , gameMsgDecoder = Types.decodeViewMsg
+    , engineMsgEncoder = Types.encodeEngineMsg
+    , engineMsgDecoder = Types.decodeEngineMsg
     , modelEncoder = Types.encodeModel
     , modelDecoder = Types.decodeModel
     , stateEncoder = Types.encodeState
@@ -29,12 +31,12 @@ game =
     }
 
 
-init : PlayerId -> State -> ( Model, Maybe ViewMsg, Cmd ViewMsg )
+init : PlayerId -> State -> ( Model, Maybe (GameMsg EngineMsg ViewMsg), Cmd (GameMsg EngineMsg ViewMsg) )
 init playerId state =
     let
         msg =
             if Dict.size state.players < 2 then
-                Just (EngineMsg Types.JoinGame)
+                Just (ForEngine Types.JoinGame)
 
             else
                 Nothing
@@ -42,12 +44,12 @@ init playerId state =
     ( Model state playerId 0, msg, Cmd.none )
 
 
-subscriptions : Model -> Sub ViewMsg
+subscriptions : Model -> Sub (GameMsg EngineMsg ViewMsg)
 subscriptions model =
-    Time.every 10000 Tock
+    Time.every 10000 (ForSelf << Tock)
 
 
-view : Game.AssetMapping -> Model -> Html ViewMsg
+view : Game.AssetMapping -> Model -> Html (GameMsg EngineMsg ViewMsg)
 view asset model =
     div []
         [ text "Tic Tac Toe"
@@ -69,16 +71,16 @@ css asset =
     asset "tic-tac-toe.css"
 
 
-update : ViewMsg -> Model -> ( Model, Cmd ViewMsg )
+update : InboundMsg EngineMsg ViewMsg -> Model -> ( Model, Cmd (GameMsg EngineMsg ViewMsg) )
 update msg model =
     case msg of
-        Tock t ->
+        GameMsg (Tock t) ->
             ( { model | time = model.time + 1 }, Cmd.none )
 
-        EngineMsg action ->
+        EngineMsg engineMsg ->
             let
                 ( state_, gameCmd ) =
-                    Engine.update (Game.PlayerMsg model.playerId action) model.state
+                    Engine.update engineMsg model.state
             in
             ( { model | state = state_ }, Cmd.none )
 
@@ -88,11 +90,11 @@ setGameState state model =
     { model | state = state }
 
 
-showTile : Int -> Tile -> Html ViewMsg
+showTile : Int -> Tile -> Html (GameMsg EngineMsg ViewMsg)
 showTile pos tile =
     case tile of
         Open ->
-            span [ onClick (EngineMsg (Types.Claim pos)) ] [ text " [ ] " ]
+            span [ onClick (ForEngine (Types.Claim pos)) ] [ text " [ ] " ]
 
         Taken X ->
             span [] [ text " [X] " ]

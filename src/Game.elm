@@ -43,20 +43,31 @@ type alias PlayerId =
     String
 
 
-type GameMsg msg
+type EngineMsg msg
     = PlayerMsg PlayerId msg
     | SystemMsg msg
-    | Tick
 
 
-type alias Game model state msg =
-    { init : PlayerId -> state -> ( model, Maybe msg, Cmd msg )
-    , update : msg -> model -> ( model, Cmd msg )
-    , view : AssetMapping -> model -> Html msg
+type GameMsg engineMsg gameMsg
+    = ForEngine engineMsg
+    | ForSelf gameMsg
+
+
+type InboundMsg engineMsg gameMsg
+    = EngineMsg (EngineMsg engineMsg)
+    | GameMsg gameMsg
+
+
+type alias Game model state engineMsg gameMsg =
+    { init : PlayerId -> state -> ( model, Maybe (GameMsg engineMsg gameMsg), Cmd (GameMsg engineMsg gameMsg) )
+    , update : InboundMsg engineMsg gameMsg -> model -> ( model, Cmd (GameMsg engineMsg gameMsg) )
+    , view : AssetMapping -> model -> Html (GameMsg engineMsg gameMsg)
     , css : AssetMapping -> Maybe String
-    , subscriptions : model -> Sub msg
-    , msgEncoder : msg -> Value
-    , msgDecoder : Decoder msg
+    , subscriptions : model -> Sub (GameMsg engineMsg gameMsg)
+    , gameMsgEncoder : gameMsg -> Value
+    , gameMsgDecoder : Decoder gameMsg
+    , engineMsgEncoder : engineMsg -> Value
+    , engineMsgDecoder : Decoder engineMsg
     , modelEncoder : model -> Value
     , modelDecoder : Decoder model
     , stateEncoder : state -> Value
@@ -67,7 +78,7 @@ type alias Game model state msg =
 
 type alias Engine state msg =
     { init : ( state, Cmd msg )
-    , update : GameMsg msg -> state -> ( state, Cmd msg )
+    , update : EngineMsg msg -> state -> ( state, Cmd msg )
     , subscriptions : state -> Sub msg
     , msgEncoder : msg -> Value
     , msgDecoder : Decoder msg

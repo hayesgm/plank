@@ -18,8 +18,7 @@ type EngineMsg
 
 
 type ViewMsg
-    = EngineMsg EngineMsg
-    | Tock Posix
+    = Tock Posix
 
 
 type alias Model =
@@ -120,20 +119,7 @@ decodeTileHelp constructor =
          Decode.fail <| "Unknown constructor for type Tile: " ++ other
 
 decodeViewMsg =
-   Decode.field "Constructor" Decode.string |> Decode.andThen decodeViewMsgHelp
-
-decodeViewMsgHelp constructor =
-   case constructor of
-      "EngineMsg" ->
-         Decode.map
-            EngineMsg
-               ( Decode.field "A1" decodeEngineMsg )
-      "Tock" ->
-         Decode.map
-            Tock
-               ( Decode.field "A1" decodePosix )
-      other->
-         Decode.fail <| "Unknown constructor for type ViewMsg: " ++ other
+   Decode.map Tock decodePosix
 
 encodeDictPlayerIdPlayer a =
    let
@@ -202,20 +188,9 @@ encodeTile a =
             , ("A1", encodePlayer a1)
             ]
 
-encodeViewMsg a =
-   case a of
-      EngineMsg a1->
-         Encode.object
-            [ ("Constructor", Encode.string "EngineMsg")
-            , ("A1", encodeEngineMsg a1)
-            ]
-      Tock a1->
-         Encode.object
-            [ ("Constructor", Encode.string "Tock")
-            , ("A1", encodePosix a1)
-            ] 
+encodeViewMsg (Tock a1) =
+   encodePosix a1 
 -- [generator-end]
-
 encodePosix : Posix -> Value
 encodePosix =
     Time.posixToMillis >> Encode.int

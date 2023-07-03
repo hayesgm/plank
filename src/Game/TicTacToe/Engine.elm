@@ -101,7 +101,7 @@ updateInternal msg maybePlayerId state =
                     ( state, Cmd.none )
 
 
-update : GameMsg EngineMsg -> State -> ( State, Cmd EngineMsg )
+update : Game.EngineMsg EngineMsg -> State -> ( State, Cmd EngineMsg )
 update msg model =
     case msg of
         Game.PlayerMsg playerId internalMsg ->
@@ -109,6 +109,3 @@ update msg model =
 
         Game.SystemMsg internalMsg ->
             updateInternal internalMsg Nothing model
-
-        Game.Tick ->
-            ( model, Cmd.none )

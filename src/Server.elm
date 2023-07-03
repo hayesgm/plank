@@ -2,7 +2,7 @@ module Server exposing (Model, Msg(..), init, main, subscriptions, update)
 
 import Action exposing (giveState, receiveAction)
 import Console exposing (log)
-import Game exposing (GameMsg(..))
+import Game exposing (EngineMsg(..))
 import Game.TicTacToe.Engine as TicTacToe
 import Json.Decode as Decode
 import Json.Encode exposing (Value)
@@ -37,28 +37,28 @@ initGameInst game =
             game.init
 
         update_ =
-            \msg maybePlayerId statePre ->
-                case ( Decode.decodeValue game.msgDecoder msg, Decode.decodeValue game.stateDecoder statePre ) of
-                    ( Ok msg_, Ok statePre_ ) ->
+            \msgEnc maybePlayerId statePreEnc ->
+                case ( Decode.decodeValue game.msgDecoder msgEnc, Decode.decodeValue game.stateDecoder statePreEnc ) of
+                    ( Ok msg, Ok statePre ) ->
                         let
                             gameMsg =
                                 case maybePlayerId of
                                     Just playerId ->
-                                        PlayerMsg playerId msg_
+                                        PlayerMsg playerId msg
 
                                     Nothing ->
-                                        SystemMsg msg_
+                                        SystemMsg msg
 
                             ( stateNext, cmdNext ) =
-                                game.update gameMsg statePre_
+                                game.update (Debug.log "gameMsg" gameMsg) statePre
                         in
                         Ok ( game.stateEncoder stateNext, game.publicStateEncoder stateNext, Cmd.map gameMsgWrapper cmdNext )
 
                     ( Err msgErr, _ ) ->
-                        Err ("Error decoding msg " ++ Decode.errorToString msgErr)
+                        Err (Debug.log "msgErr" ("Error decoding msg " ++ Decode.errorToString msgErr))
 
                     ( _, Err stateErr ) ->
-                        Err ("Error decoding state " ++ Decode.errorToString stateErr)
+                        Err (Debug.log "stateErr" ("Error decoding state " ++ Decode.errorToString stateErr))
 
         subscriptions_ =
             Sub.map gameMsgWrapper << game.subscriptions << Result.withDefault initState << Decode.decodeValue game.stateDecoder
@@ -119,16 +119,16 @@ update msg model =
         Just game ->
             case msg of
                 GameMsg playerId childMsg ->
-                    case game.update childMsg playerId game.state of
+                    case game.update (Debug.log (Json.Encode.encode 2 childMsg) childMsg) (Debug.log "playerId" playerId) game.state of
                         Ok ( stateNext, publicStateNext, cmd ) ->
-                            if game.state /= stateNext then
+                            if game.state /= Debug.log ("state next" ++ Json.Encode.encode 2 stateNext) stateNext then
                                 ( { model | game = Just { game | state = stateNext } }, Cmd.batch [ giveState publicStateNext, cmd ] )
 
                             else
-                                ( model, cmd )
+                                ( { model | game = Just { game | state = stateNext } }, cmd )
 
                         Err err ->
-                            ( model, log err )
+                            ( model, log (Debug.log "err" err) )
 
         Nothing ->
             ( model, Cmd.none )
