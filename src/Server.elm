@@ -6,6 +6,7 @@ import Game exposing (EngineMsg(..))
 import Game.TicTacToe.Engine
 import Game.Wordle.Engine
 import GameList
+import GameServer exposing (GameServer)
 import Json.Decode as Decode
 import Json.Encode as Encode exposing (Value)
 import Platform exposing (worker)
@@ -13,68 +14,6 @@ import Platform exposing (worker)
 
 type Msg
     = GameMsg (Maybe String) Value
-
-
-type alias GameInst =
-    { state : Value
-    , update : Value -> Maybe String -> Value -> Result String ( Value, Value, Cmd Msg )
-    , subscriptions : Value -> Sub Msg
-    }
-
-
-initGame : GameList.GameName -> ( GameInst, Value, Cmd Msg )
-initGame gameName =
-    case gameName of
-        GameList.TicTacToe ->
-            initGameInst Game.TicTacToe.Engine.engine
-
-        GameList.Wordle ->
-            initGameInst Game.Wordle.Engine.engine
-
-
-initGameInst : Game.Engine state msg -> ( GameInst, Value, Cmd Msg )
-initGameInst game =
-    let
-        gameMsgWrapper =
-            GameMsg Nothing << game.msgEncoder
-
-        ( initState, initCmd ) =
-            game.init
-
-        update_ =
-            \msgEnc maybePlayerId statePreEnc ->
-                case ( Decode.decodeValue game.msgDecoder msgEnc, Decode.decodeValue game.stateDecoder statePreEnc ) of
-                    ( Ok msg, Ok statePre ) ->
-                        let
-                            gameMsg =
-                                case maybePlayerId of
-                                    Just playerId ->
-                                        PlayerMsg playerId msg
-
-                                    Nothing ->
-                                        SystemMsg msg
-
-                            ( stateNext, cmdNext ) =
-                                game.update gameMsg statePre
-                        in
-                        Ok ( game.stateEncoder stateNext, game.stateEncoder (game.getPublicState stateNext), Cmd.map gameMsgWrapper cmdNext )
-
-                    ( Err msgErr, _ ) ->
-                        Err ("Error decoding msg " ++ Decode.errorToString msgErr)
-
-                    ( _, Err stateErr ) ->
-                        Err ("Error decoding state " ++ Decode.errorToString stateErr)
-
-        subscriptions_ =
-            Sub.map gameMsgWrapper << game.subscriptions << Result.withDefault initState << Decode.decodeValue game.stateDecoder
-    in
-    ( { state = game.stateEncoder initState
-      , update = update_
-      , subscriptions = subscriptions_
-      }
-    , game.stateEncoder initState
-    , Cmd.map gameMsgWrapper initCmd
-    )
 
 
 main : Program String Model Msg
@@ -100,7 +39,7 @@ subscriptions model =
 
 
 type alias Model =
-    { game : Maybe GameInst
+    { game : Maybe (GameServer Msg)
     }
 
 
@@ -110,7 +49,7 @@ init gameNameStr =
         Just gameName ->
             let
                 ( game, publicState, cmd ) =
-                    initGame gameName
+                    GameList.initEngine GameMsg gameName
             in
             ( { game = Just game }, Cmd.batch [ giveState publicState, cmd ] )
 
