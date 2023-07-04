@@ -89,6 +89,14 @@ app.ports.sendAction.subscribe((action) => {
   }
 });
 
+app.ports.disconnect.subscribe(() => {
+  console.log("Disconnecting from websocket");
+  if (websocket) {
+    websocket.close();
+    websocket = undefined;
+  }
+});
+
 let cssEl;
 
 app.ports.loadCss.subscribe((asset) => {

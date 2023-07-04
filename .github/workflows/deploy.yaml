@@ -5,7 +5,7 @@ on:
   push:
     branches:
       - main
-      - hayesgm/ci
+      - hayesgm/longevity
 
 jobs:
   deploy:

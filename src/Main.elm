@@ -263,8 +263,17 @@ update msg model =
                     ( model, Nav.load href )
 
         UrlChanged url ->
-            ( { model | route = Routes.getRoute url }
-            , Cmd.none
+            let
+                cmd =
+                    case model.game of
+                        Just game ->
+                            Action.disconnect ()
+
+                        _ ->
+                            Cmd.none
+            in
+            ( { model | route = Routes.getRoute url, game = Nothing }
+            , cmd
             )
 
         SetSession (Err err) ->

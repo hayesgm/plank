@@ -19,8 +19,8 @@ n. Fix routing issues esp. one first load
 ~~o. Make sure to clear guest account after expiration~~
 ~~p. CI/CD pipeline~~
 ~~q. Domain name~~
-r. Better grasp of lifetime of Durable Objects
+~~r. Better grasp of lifetime of Durable Objects~~
 s. Figure out app caching
 t. Improve session invalidation flows (maybe post-d)
-u. Use errors for exceptionals in the server?
-v. Use messages, not errors, for Websocket issues, e.g. bad auth
+~~u. Use errors for exceptionals in the server?~~
+~~v. Use messages, not errors, for Websocket issues, e.g. bad auth~~
