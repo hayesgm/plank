@@ -10,6 +10,8 @@ function getSession() {
   }
 }
 
+// TODO: Improve session invalidation flow, maybe after we have full
+//       user accounts.
 function invalidateSession(maybeGameName) {
   sessionStorage.removeItem('session');
   app.ports.sessionInvalid.send(maybeGameName);
@@ -64,6 +66,9 @@ app.ports.joinGame.subscribe(([nonce, gameId]) => {
     } else if ('action' in data) {
       console.log("Received player action", data.action);
       app.ports.receiveAction.send(data.action);
+    } else if ('error' in data) {
+      console.error("Server error", data.error);
+      console.error(data);
     } else {
       console.log('Ignoring unknown server message', event.data);
     }
