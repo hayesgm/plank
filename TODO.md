@@ -12,10 +12,10 @@ f. Isolate each game's CSS
 ~~h. Return home on game not found?~~
 ~~i. Allow reconnect~~
 ~~j. Private state~~
-k. Quirk where you start a game, it says not found, then it joins, maybe twice?
+~~k. Quirk where you start a game, it says not found, then it joins, maybe twice?~~
 l. Word list in Wordle
 ~~m. guest account auth~~
-n. Fix routing issues esp. one first load
+~~n. Fix routing issues esp. one first load~~
 ~~o. Make sure to clear guest account after expiration~~
 ~~p. CI/CD pipeline~~
 ~~q. Domain name~~
