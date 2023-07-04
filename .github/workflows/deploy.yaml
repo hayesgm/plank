@@ -32,6 +32,11 @@ jobs:
           node-version: '18.12'
           cache: npm
 
+      - name: Install Elm
+        uses: jorelali/setup-elm@v5
+        with:
+          elm-version: 0.19.1
+
       - name: Install Node Dependencies
         run: npm install
 
