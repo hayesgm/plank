@@ -15,3 +15,6 @@ new_classes = ["Plank"]
 
 [dev]
 port = 2233
+
+[build]
+command = "npm run build"
