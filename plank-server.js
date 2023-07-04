@@ -154,40 +154,71 @@ export class Plank {
   }
 
   async initialize(playerId, gameId, gameName) {
-    this.gameId = gameId;
-    this.gameName = gameName;
+    await this.state.blockConcurrencyWhile(async () => {
+      await Promise.all([
+        this.state.storage.put('gameId', gameId),
+        this.state.storage.put('gameName', gameName),
+        this.state.storage.put('playerId', playerId)
+      ]);
 
-    this.game = Elm.Server.init({
-      flags: gameName
+      this.gameId = gameId;
+      this.gameName = gameName;
+
+      this.game = Elm.Server.init({
+        flags: gameName
+      });
+
+      this.game.ports.log.subscribe((msg) => {
+        this.log(msg);
+      });
+
+      this.gameState = await this.state.storage.get('state');
+
+      // TODO: Is there a cleaner way to make sure we get state first?
+      let resolve;
+      let gameStateSet = new Promise((resolve_, reject_) => {
+        resolve = resolve_;
+      });
+
+      if (this.gameState !== undefined) {
+        resolve(); // Don't need to wait for game state from app
+      }
+
+      this.game.ports.giveState.subscribe(async (state) => {
+        this.gameState = state;
+        this.state.storage.put('state', JSON.stringify(state));
+        resolve();
+      });
+
+      // TODO: We shouldn't really add ports, but it's worth understanding
+      this.game.ports.wordleFetch.subscribe(async () => {
+        console.log("wordle fetch!!");
+        let res = await fetch('https://www.nytimes.com/svc/wordle/v2/2023-07-02.json');
+        let json = await res.json();
+        console.log("solution", json.solution);
+        this.game.ports.wordleGot.send(json.solution);
+      })
+
+      await gameStateSet;
     });
-
-    this.game.ports.log.subscribe((msg) => {
-      this.log(msg);
-    });
-
-    // TODO: Is there a cleaner way to make sure we get state first?
-    let resolve;
-    let gameStateSet = new Promise((resolve_, reject_) => {
-      resolve = resolve_;
-    });
-
-    this.game.ports.giveState.subscribe((state) => {
-      this.gameState = state;
-      resolve();
-    })
-
-    // TODO: We shouldn't really add ports, but it's worth understanding
-    this.game.ports.wordleFetch.subscribe(async () => {
-      console.log("wordle fetch!!");
-      let res = await fetch('https://www.nytimes.com/svc/wordle/v2/2023-07-02.json');
-      let json = await res.json();
-      console.log("solution", json.solution);
-      this.game.ports.wordleGot.send(json.solution);
-    })
-
-    await gameStateSet;
 
     return jsonResp({gameId});
+  }
+
+  async ensureGameRunning() {
+    if (this.game === undefined) {
+      let [gameId, gameName, playerId] = await Promise.all([
+        this.state.storage.get('gameId'),
+        this.state.storage.get('gameName'),
+        this.state.storage.get('playerId'),
+      ]);
+
+      if (gameId === undefined || gameName === undefined) {
+        return notFound();
+      }
+
+      this.initialize(playerId, gameId, gameName);
+    }
   }
 
   async handlePlayerMessage(playerId, event) {
@@ -197,7 +228,7 @@ export class Plank {
     this.game.ports.receiveAction.send([playerId, action]);
   }
 
-  async upgrade(playerId, request) {
+  async connect(playerId, request) {
     let upgradeHeader = request.headers.get("Upgrade")
     if (upgradeHeader !== "websocket") {
       return new Response("Expected websocket", { status: 400 })
@@ -205,6 +236,11 @@ export class Plank {
 
     let webSocketPair = new WebSocketPair();
     let [client, server] = Object.values(webSocketPair);
+
+    let ensureRes = await this.ensureGameRunning();
+    if (ensureRes !== undefined) {
+      return ensureRes;
+    }
 
     // TODO: Maybe group these calls?
     this.game.ports.giveState.subscribe((state) => {
@@ -278,7 +314,7 @@ export class Plank {
       let [gameName, gameId] = pathnames;
       return this.initialize(playerId, gameId, gameName);
     } else {
-      return this.upgrade(playerId, request);
+      return this.connect(playerId, request);
     }
   }
 }
