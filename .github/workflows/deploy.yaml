@@ -10,6 +10,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: prod
     name: Deploy
     steps:
       - name: Build Note for ${{ github.ref }}
@@ -67,7 +68,7 @@ jobs:
         uses: chrnorm/deployment-status@v2
         with:
           token: '${{ github.token }}'
-          environment-url: '${{ env.PLANK_URL }}'
+          environment-url: '${{ vars.PLANK_URL }}'
           state: 'success'
           deployment-id: ${{ steps.deployment.outputs.deployment_id }}
 
@@ -76,6 +77,6 @@ jobs:
         uses: chrnorm/deployment-status@v2
         with:
           token: '${{ github.token }}'
-          environment-url: '${{ env.PLANK_URL }}'
+          environment-url: '${{ vars.PLANK_URL }}'
           state: 'failure'
           deployment-id: ${{ steps.deployment.outputs.deployment_id }}
