@@ -143,7 +143,7 @@ viewGame gameId model =
                         ]
 
                     Nothing ->
-                        [ viewNotFoundHtml model ]
+                        [ div [] [ text "Loading game... " ] ]
                )
     }
 

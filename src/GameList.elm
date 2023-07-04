@@ -52,17 +52,23 @@ gameFromString gameName =
             Nothing
 
 
-initEngine : GameMsgWrapper serverMsg -> GameName -> ( GameServer serverMsg, Value, Cmd serverMsg )
-initEngine msgWrapper gameName =
+initEngine : GameMsgWrapper serverMsg -> GameName -> Maybe Value -> ( GameServer serverMsg, Value, Cmd serverMsg )
+initEngine msgWrapper gameName maybeInitState =
+    let
+        gameServerData =
+            { msgWrapper = msgWrapper
+            , maybeInitState = maybeInitState
+            }
+    in
     case gameName of
         Connect4 ->
-            initGameServer Game.Connect4.Engine.engine msgWrapper
+            initGameServer Game.Connect4.Engine.engine gameServerData
 
         TicTacToe ->
-            initGameServer Game.TicTacToe.Engine.engine msgWrapper
+            initGameServer Game.TicTacToe.Engine.engine gameServerData
 
         Wordle ->
-            initGameServer Game.Wordle.Engine.engine msgWrapper
+            initGameServer Game.Wordle.Engine.engine gameServerData
 
 
 initGame : MsgWrapper msg -> GameName -> String -> Value -> String -> (String -> Game.AssetMapping) -> Result String ( GameInst msg, Maybe msg, Cmd msg )

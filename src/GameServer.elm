@@ -16,14 +16,31 @@ type alias GameServer serverMsg =
     }
 
 
-initGameServer : Game.Engine state msg -> GameMsgWrapper serverMsg -> ( GameServer serverMsg, Value, Cmd serverMsg )
-initGameServer game msgWrapper =
+type alias GameServerData serverMsg =
+    { msgWrapper : GameMsgWrapper serverMsg
+    , maybeInitState : Maybe Value
+    }
+
+
+initGameServer : Game.Engine state msg -> GameServerData serverMsg -> ( GameServer serverMsg, Value, Cmd serverMsg )
+initGameServer game { msgWrapper, maybeInitState } =
     let
         gameMsgWrapper =
             msgWrapper Nothing << game.msgEncoder
 
         ( initState, initCmd ) =
-            game.init
+            case maybeInitState of
+                Just st ->
+                    case Decode.decodeValue game.stateDecoder st of
+                        Ok currState ->
+                            ( currState, Cmd.none )
+
+                        _ ->
+                            -- TODO: Maybe propagate an error here?
+                            game.init
+
+                _ ->
+                    game.init
 
         update_ =
             \msgEnc maybePlayerId statePreEnc ->

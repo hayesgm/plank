@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev:app": "vite",
-    "dev:server": "wrangler dev --local",
+    "dev:server": "vite build --mode development && wrangler dev --local",
+    "dev:server:watch": "vite build --mode development --watch",
+    "dev:server:start": "wrangler dev --local",
     "build": "vite build --mode production",
-    "build:watch": "vite build --mode development --watch",
     "preview": "vite preview",
     "deploy": "vite build --mode production && wrangler publish && wrangler pages publish dist/",
     "build-types": "elm-coder-generator"

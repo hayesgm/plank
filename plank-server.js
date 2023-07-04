@@ -52,7 +52,12 @@ class ServerError {
   }
 
   toResponse() {
-    return new Response(this.msg, { status });
+    return new Response(this.msg, {
+      status: this.status,
+      headers: {
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
   }
 
   toJson() {
@@ -199,7 +204,10 @@ export class Plank {
       this.gameName = gameName;
 
       this.game = Elm.Server.init({
-        flags: gameName
+        flags: {
+          gameName,
+          gameState
+        }
       });
 
       this.game.ports.log.subscribe((msg) => {
@@ -207,26 +215,29 @@ export class Plank {
       });
 
       if (gameState === undefined) {
-        // TODO: Is there a cleaner way to make sure we get state first?
         let resolve;
-        let gameStateSet = new Promise((resolve_, reject_) => {
+        let gameStateP = new Promise((resolve_, reject_) => {
           resolve = resolve_;
         });
 
-        this.game.ports.giveState.subscribe(async (state) => {
-          this.gameState = state;
-          this.state.storage.put('state', JSON.stringify(state));
-          resolve();
-        });
+        let getInitialState = async (state) => {
+          resolve(state);
+          this.game.ports.giveState.unsubscribe(getInitialState);          
+        }
 
-        await gameStateSet;
+        this.game.ports.giveState.subscribe(getInitialState);
+
+        this.gameState = await gameStateP;
       } else {
         this.gameState = gameState;
-        this.game.ports.giveState.subscribe(async (state) => {
-          this.gameState = state;
-          this.state.storage.put('state', JSON.stringify(state));
-        });
       }
+
+      await this.state.storage.put('state', JSON.stringify(this.gameState));
+      
+      this.game.ports.giveState.subscribe((state) => {
+        this.gameState = state;
+        this.state.storage.put('state', JSON.stringify(state));
+      });
 
       // TODO: We shouldn't really add ports, but it's worth understanding
       this.game.ports.wordleFetch.subscribe(async () => {
@@ -241,15 +252,15 @@ export class Plank {
 
   async ensureGameRunning() {
     if (this.game === undefined) {
-      let [gameId, gameName, playerId, gameState] = await Promise.all([
+      let [gameId, gameName, playerId, gameStateEnc] = await Promise.all([
         this.state.storage.get('gameId'),
         this.state.storage.get('gameName'),
         this.state.storage.get('playerId'),
         this.state.storage.get('state'),
       ]);
-      console.log(['gameId', await this.state.storage.get('gameId')]);
+      let gameState = gameStateEnc !== undefined ? JSON.parse(gameStateEnc) : gameStateEnc;
 
-      if (gameId === undefined || gameName === undefined) {
+      if (gameId === undefined || gameName === undefined || playerId === undefined || gameState === undefined) {
         // This could be from a phoney game id or from a
         // a game whose state has outlived its ttl.
         let error = new NotFound('Game not found');
@@ -356,8 +367,9 @@ export class Plank {
       let prefix = pathnames.shift();
       if (prefix === 'initialize') {
         if (auth === null) {
-          throw Forbidden();
+          throw new Forbidden();
         }
+
         let [gameName, gameId] = pathnames;
         return this.initialize(auth.playerId, gameId, gameName);
       } else {

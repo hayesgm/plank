@@ -22,13 +22,17 @@ const ssl = import.meta.env.VITE_PLANK_SSL === 'true' ?? false;
 const host = import.meta.env.VITE_PLANK_HOST ?? 'localhost:2233';
 const session = getSession();
 
-console.log({session});
+console.log("session", session);
 const app = Elm.Main.init({
   flags: {
     assetMapping,
     session
   },
   node: document.getElementById('root'),
+});
+
+app.ports.log.subscribe((msg) => {
+  console.log("[Plank][Log] " + msg);
 });
 
 let websocket;
