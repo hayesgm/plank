@@ -53,7 +53,7 @@ jobs:
         uses: cloudflare/wrangler-action@2.0.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: pages publish --project-name plank dist/
+          command: pages publish --no-bundle --project-name plank dist/
 
       - name: Update deployment status (success)
         if: success()
