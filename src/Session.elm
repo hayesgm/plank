@@ -1,4 +1,4 @@
-port module Session exposing (Session, decodeMaybeSession, decodeSession, sessionClear, sessionGuestLogin, sessionReceive)
+port module Session exposing (..)
 
 import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode exposing (Value)
@@ -10,7 +10,7 @@ port sessionGuestLogin : () -> Cmd msg
 port sessionReceive : (Value -> msg) -> Sub msg
 
 
-port sessionClear : () -> Cmd msg
+port sessionInvalid : (Maybe String -> msg) -> Sub msg
 
 
 type alias Session =

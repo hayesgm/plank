@@ -31,6 +31,7 @@ type Msg
     | LinkClicked Browser.UrlRequest
     | UrlChanged Url
     | SetSession (Result Decode.Error Session)
+    | ReLogin (Maybe String)
 
 
 main : Program Value Model Msg
@@ -281,6 +282,10 @@ update msg model =
             in
             ( { model | session = Just session }, cmd )
 
+        ReLogin maybeGameName ->
+            -- TODO: Try to connect game again
+            ( { model | session = Nothing }, Session.sessionGuestLogin () )
+
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -290,6 +295,7 @@ subscriptions model =
         , Action.gameConnected GameConnected
         , Action.newGameResp NewGameResp
         , Session.sessionReceive (Decode.decodeValue Session.decodeSession >> SetSession)
+        , Session.sessionInvalid ReLogin
         , case model.game of
             Just game ->
                 game.subscriptions game.model game.state
