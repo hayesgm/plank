@@ -1,0 +1,89 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - hayesgm/ci
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: prod
+    name: Deploy
+    steps:
+      - name: Build Note for ${{ github.ref }}
+        run: |
+          echo Building ${GITHUB_REF}...
+
+      - uses: chrnorm/deployment-action@v2
+        name: Create GitHub deployment
+        id: deployment
+        with:
+          token: '${{ github.token }}'
+          environment: prod
+
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set .env.production
+        run: |
+          echo "$VITE_CONFIG" > .env.production
+          cat .env.production
+        env:
+          VITE_CONFIG: ${{ vars.VITE_CONFIG }}
+
+      - name: Install NodeJS
+        uses: actions/setup-node@v2
+        with:
+          node-version: '18.12'
+          cache: npm
+
+      - name: Install Elm
+        uses: jorelali/setup-elm@v5
+        with:
+          elm-version: 0.19.1
+
+      - name: Install Node Dependencies
+        run: npm install
+
+      - name: Build App
+        run: npm run build
+
+      - name: Set wrangler.toml
+        run: |
+          echo "$WRANGLER_CONFIG" > wrangler.toml
+          cat wrangler.toml
+        env:
+          WRANGLER_CONFIG: ${{ vars.WRANGLER_CONFIG }}
+
+      - name: Publish Worker
+        uses: cloudflare/wrangler-action@2.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: publish
+
+      - name: Publish Pages
+        uses: cloudflare/wrangler-action@2.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: pages publish --project-name plank dist/
+
+      - name: Update deployment status (success)
+        if: success()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: '${{ github.token }}'
+          environment-url: '${{ vars.PLANK_URL }}'
+          state: 'success'
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
+
+      - name: Update deployment status (failure)
+        if: failure()
+        uses: chrnorm/deployment-status@v2
+        with:
+          token: '${{ github.token }}'
+          environment-url: '${{ vars.PLANK_URL }}'
+          state: 'failure'
+          deployment-id: ${{ steps.deployment.outputs.deployment_id }}
