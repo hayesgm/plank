@@ -48,7 +48,7 @@ jobs:
           echo "$WRANGLER_CONFIG" > wrangler.toml
           cat wrangler.toml
         env:
-          WRANGLER_CONFIG: ${{ env.WRANGLER_CONFIG }}
+          WRANGLER_CONFIG: ${{ vars.WRANGLER_CONFIG }}
 
       - name: Publish Worker
         uses: cloudflare/wrangler-action@2.0.0
