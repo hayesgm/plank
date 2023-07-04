@@ -10,6 +10,11 @@ function getSession() {
   }
 }
 
+function invalidateSession(maybeGameName) {
+  sessionStorage.removeItem('session');
+  app.ports.sessionInvalid.send(maybeGameName);
+}
+
 const assetMapping =  import.meta.glob("./src/Game/*/assets/*.(jpg|JPG|png|PNG|svg|css)", { as: "url", eager: true });
 const ssl = import.meta.env.VITE_PLANK_SSL === 'true' ?? false;
 const host = import.meta.env.VITE_PLANK_HOST ?? 'localhost:2233';
@@ -43,7 +48,8 @@ app.ports.joinGame.subscribe(([nonce, gameId]) => {
 
     // TODO: It might be nice to work on looking into the
     //       error a bit more.
-    app.ports.sessionInvalid.send(null);
+    invalidateSession(null)
+
   })
 
   websocket.addEventListener('message', (event) => {
@@ -92,6 +98,6 @@ app.ports.newGame.subscribe(async ([nonce, gameName]) => {
     let json = await resp.json();
     app.ports.newGameResp.send(json);
   } else if (resp.status === 403) {
-    app.ports.sessionInvalid.send(gameName);
+    invalidateSession(gameName);
   }
 });

@@ -214,10 +214,11 @@ export class Plank {
       ]);
 
       if (gameId === undefined || gameName === undefined) {
+        this.log("Game not found");
         return notFound();
       }
 
-      this.initialize(playerId, gameId, gameName);
+      await this.initialize(playerId, gameId, gameName);
     }
   }
 
