@@ -67,8 +67,11 @@ app.ports.joinGame.subscribe(([nonce, gameId]) => {
       console.log("Received player action", data.action);
       app.ports.receiveAction.send(data.action);
     } else if ('error' in data) {
-      console.error("Server error", data.error);
-      console.error(data);
+      let { error } = data;
+      console.error("Server error", error);
+      if (error.status === 403) {
+        invalidateSession(null);
+      }
     } else {
       console.log('Ignoring unknown server message', event.data);
     }

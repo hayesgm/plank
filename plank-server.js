@@ -247,6 +247,7 @@ export class Plank {
         this.state.storage.get('playerId'),
         this.state.storage.get('state'),
       ]);
+      console.log(['gameId', await this.state.storage.get('gameId')]);
 
       if (gameId === undefined || gameName === undefined) {
         // This could be from a phoney game id or from a
