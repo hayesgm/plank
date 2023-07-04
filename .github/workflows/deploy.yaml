@@ -24,7 +24,7 @@ jobs:
           environment: prod
 
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v2      
 
       - name: Install NodeJS
         uses: actions/setup-node@v2
@@ -43,11 +43,18 @@ jobs:
       - name: Build App
         run: npm run build
 
+      - name: Set wrangler.toml
+        run: |
+          echo "$WRANGLER_CONFIG" > wrangler.toml
+          cat wrangler.toml
+        env:
+          WRANGLER_CONFIG: ${{ env.WRANGLER_CONFIG }}
+
       - name: Publish Worker
         uses: cloudflare/wrangler-action@2.0.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: publish --no-bundle
+          command: publish
 
       - name: Publish Pages
         uses: cloudflare/wrangler-action@2.0.0
