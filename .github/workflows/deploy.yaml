@@ -25,7 +25,14 @@ jobs:
           environment: prod
 
       - name: Checkout repository
-        uses: actions/checkout@v2      
+        uses: actions/checkout@v2
+
+      - name: Set .env.production
+        run: |
+          echo "$VITE_CONFIG" > .env.production
+          cat .env.production
+        env:
+          VITE_CONFIG: ${{ vars.VITE_CONFIG }}
 
       - name: Install NodeJS
         uses: actions/setup-node@v2
