@@ -1,6 +1,22 @@
 import './style.css'
 import { Elm } from './src/Main.elm'
 
+function parseHexString(str) {
+  let bytes = [];
+  str.replace(/../g, function (pair) {
+    bytes.push(parseInt(pair, 16));
+  });
+  return new Uint8Array(bytes).buffer;
+}
+
+function parsePlayerId(playerId) {
+  if (playerId.startsWith('user_')) {
+    return parseHexString(playerId.slice(5));
+  } else {
+    throw new Error('Invalid player id: ' + playerId);
+  }
+}
+
 function getSession() {
   let sessionEnc = sessionStorage.getItem('session');
   if (sessionEnc) {
@@ -124,29 +140,52 @@ app.ports.newGame.subscribe(async ([nonce, gameName]) => {
 
 app.ports.authRegister.subscribe(async (username) => {
   console.log("Register as user", username);
-  let resp = await fetch(`http${ssl ? 's' : ''}://${host}/login/register`, {
+  let startResp = await fetch(`http${ssl ? 's' : ''}://${host}/login/register/start`, {
     method: 'POST',
     body: JSON.stringify({username}),
     headers: {
       'Content-Type': 'application/json'
     }
   });
-  let json = await resp.json();
-
-  let challenge = json.challenge;
+  let { challenge, playerId } = await startResp.json();
 
   // This should be a challenge, which we should complete
   let credential = await navigator.credentials.create({
     publicKey: {
-      challenge: challenge,
+      challenge: parseHexString(challenge),
       rp: { name: "Plank Server" },
       user: { // TODO: Track information about the user id locally?
-        name: username
+        id: parsePlayerId(playerId),
+        name: username,
+        displayName: username
       },
       pubKeyCredParams: [ {type: "public-key", alg: -7} ]
     }
   });
   console.log(credential);
+
+  const response = credential.response;
+
+  // Access authenticator data ArrayBuffer
+  console.log('authenticatorData', response.authenticatorData);
+
+  // Access client JSON
+  console.log('clientJSON', clientDataJSON);
+
+  // Access signature ArrayBuffer
+  console.log('clientJSON', response.signature);
+
+  // Access userHandle ArrayBuffer
+  console.log('clientJSON',  response.userHandle);
+
+  // Now send the server back the credential to complete the process
+  // let completeResp = await fetch(`http${ssl ? 's' : ''}://${host}/login/register/complete`, {
+  //   method: 'POST',
+  //   body: JSON.stringify({username, playerId}),
+  //   headers: {
+  //     'Content-Type': 'application/json'
+  //   }
+  // });
   
   // TODO: Complete the registration process
 

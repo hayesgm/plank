@@ -110,9 +110,14 @@ async function handleRequest(request, env) {
       await env.plank_guests.put(nonce, playerId, {expirationTtl: GUEST_TTL});
       return jsonResp({playerId, nonce});
     } else if (pathnames[0] === 'register') {
-      // TODO: Track this so that we can finish registration
-      let challenge = getRandomNonce();
-      return jsonResp({challenge});
+      if (pathnames[1] === 'start') {
+        // TODO: Track this so that we can finish registration
+        let playerId = generatePlayerId();
+        let challenge = getRandomNonce();
+        return jsonResp({playerId, challenge});
+      } else if (pathnames[1] === 'complete') {
+        // TODO:
+      }
     } else {
       return notFound();
     }
