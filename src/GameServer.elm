@@ -2,7 +2,7 @@ module GameServer exposing (GameMsgWrapper, GameServer, initGameServer)
 
 import Game exposing (EngineMsg(..))
 import Json.Decode as Decode
-import Json.Encode as Encode exposing (Value)
+import Json.Encode exposing (Value)
 
 
 type alias GameMsgWrapper serverMsg =
