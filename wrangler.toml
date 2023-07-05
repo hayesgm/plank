@@ -17,4 +17,4 @@ new_classes = ["Plank"]
 port = 2233
 
 [build]
-command = "npm run build"
+command = "npx vite build --mode development"

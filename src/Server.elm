@@ -5,6 +5,7 @@ import Console exposing (log)
 import Game exposing (EngineMsg(..))
 import Game.TicTacToe.Engine
 import Game.Wordle.Engine
+import GameInfo
 import GameList
 import GameServer exposing (GameServer)
 import Json.Decode as Decode
@@ -16,7 +17,7 @@ type Msg
     = GameMsg (Maybe String) Value
 
 
-main : Program String Model Msg
+main : Program Value Model Msg
 main =
     worker
         { init = init
@@ -43,18 +44,28 @@ type alias Model =
     }
 
 
-init : String -> ( Model, Cmd Msg )
-init gameNameStr =
-    case GameList.gameFromString gameNameStr of
-        Just gameName ->
+init : Value -> ( Model, Cmd Msg )
+init flags =
+    let
+        maybeInitState =
+            case Decode.decodeValue (Decode.field "gameState" Decode.value) flags of
+                Ok res ->
+                    Just res
+
+                Err _ ->
+                    Nothing
+    in
+    case Decode.decodeValue (Decode.field "gameName" GameInfo.gameNameDecoder) flags of
+        Ok gameName ->
             let
+                -- TODO: Is this public?
                 ( game, publicState, cmd ) =
-                    GameList.initEngine GameMsg gameName
+                    GameList.initEngine GameMsg gameName maybeInitState
             in
             ( { game = Just game }, Cmd.batch [ giveState publicState, cmd ] )
 
-        Nothing ->
-            ( { game = Nothing }, Cmd.none )
+        Err err ->
+            ( { game = Nothing }, log ("Error decoding game name " ++ Decode.errorToString err) )
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )

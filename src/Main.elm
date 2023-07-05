@@ -143,7 +143,7 @@ viewGame gameId model =
                         ]
 
                     Nothing ->
-                        [ viewNotFoundHtml model ]
+                        [ div [] [ text "Loading game... " ] ]
                )
     }
 
@@ -263,8 +263,17 @@ update msg model =
                     ( model, Nav.load href )
 
         UrlChanged url ->
-            ( { model | route = Routes.getRoute url }
-            , Cmd.none
+            let
+                cmd =
+                    case model.game of
+                        Just game ->
+                            Action.disconnect ()
+
+                        _ ->
+                            Cmd.none
+            in
+            ( { model | route = Routes.getRoute url, game = Nothing }
+            , cmd
             )
 
         SetSession (Err err) ->
@@ -284,7 +293,8 @@ update msg model =
 
         ReLogin maybeGameName ->
             -- TODO: Try to connect game again
-            ( { model | session = Nothing }, Session.sessionGuestLogin () )
+            -- TODO: Careful, since this can loop for so many reasons
+            ( { model | session = Nothing }, Cmd.none )
 
 
 subscriptions : Model -> Sub Msg

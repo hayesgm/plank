@@ -44,12 +44,50 @@ function jsonResp(res) {
   });
 }
 
+class ServerError {
+  constructor(msg, status) {
+    this.msg = msg;
+    this.status = status;
+
+  }
+
+  toResponse() {
+    return new Response(this.msg, {
+      status: this.status,
+      headers: {
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
+  }
+
+  toJson() {
+    return {
+      error: {
+        message: this.msg,
+        status: this.status
+      }
+    }
+  }
+}
+
+class NotFound extends ServerError {
+  constructor(msg = 'Not Found', status = 404) {
+    super(msg, status);
+  }
+}
+
+class Forbidden extends ServerError {
+  constructor(msg = 'Forbidden', status = 403) {
+    super(msg, status);
+  }
+}
+
 function notFound() {
-  return new Response("Not found", {status: 404});
+  return new NotFound().toResponse();
 }
 
 function forbidden() {
-  return new Response("Forbidden", {status: 403});
+  return new Forbidden().toResponse();
 }
 
 function getPlank(gameId, env) {
@@ -148,46 +186,90 @@ export class Plank {
       }
     }
 
-    return {
-      response: forbidden()
-    }
+    return null;
   }
 
-  async initialize(playerId, gameId, gameName) {
-    this.gameId = gameId;
-    this.gameName = gameName;
+  async initialize(playerId, gameId, gameName, gameState = undefined) {
+    await this.state.blockConcurrencyWhile(async () => {
+      if (gameState === undefined) {
+        // First load, save these items
+        await Promise.all([
+          this.state.storage.put('gameId', gameId),
+          this.state.storage.put('gameName', gameName),
+          this.state.storage.put('playerId', playerId)
+        ]);
+      }
 
-    this.game = Elm.Server.init({
-      flags: gameName
+      this.gameId = gameId;
+      this.gameName = gameName;
+
+      this.game = Elm.Server.init({
+        flags: {
+          gameName,
+          gameState
+        }
+      });
+
+      this.game.ports.log.subscribe((msg) => {
+        this.log(msg);
+      });
+
+      if (gameState === undefined) {
+        let resolve;
+        let gameStateP = new Promise((resolve_, reject_) => {
+          resolve = resolve_;
+        });
+
+        let getInitialState = async (state) => {
+          resolve(state);
+          this.game.ports.giveState.unsubscribe(getInitialState);          
+        }
+
+        this.game.ports.giveState.subscribe(getInitialState);
+
+        this.gameState = await gameStateP;
+      } else {
+        this.gameState = gameState;
+      }
+
+      await this.state.storage.put('state', JSON.stringify(this.gameState));
+      
+      this.game.ports.giveState.subscribe((state) => {
+        this.gameState = state;
+        this.state.storage.put('state', JSON.stringify(state));
+      });
+
+      // TODO: We shouldn't really add ports, but it's worth understanding
+      this.game.ports.wordleFetch.subscribe(async () => {
+        let res = await fetch('https://www.nytimes.com/svc/wordle/v2/2023-07-02.json');
+        let json = await res.json();
+        this.game.ports.wordleGot.send(json.solution);
+      })
     });
-
-    this.game.ports.log.subscribe((msg) => {
-      this.log(msg);
-    });
-
-    // TODO: Is there a cleaner way to make sure we get state first?
-    let resolve;
-    let gameStateSet = new Promise((resolve_, reject_) => {
-      resolve = resolve_;
-    });
-
-    this.game.ports.giveState.subscribe((state) => {
-      this.gameState = state;
-      resolve();
-    })
-
-    // TODO: We shouldn't really add ports, but it's worth understanding
-    this.game.ports.wordleFetch.subscribe(async () => {
-      console.log("wordle fetch!!");
-      let res = await fetch('https://www.nytimes.com/svc/wordle/v2/2023-07-02.json');
-      let json = await res.json();
-      console.log("solution", json.solution);
-      this.game.ports.wordleGot.send(json.solution);
-    })
-
-    await gameStateSet;
 
     return jsonResp({gameId});
+  }
+
+  async ensureGameRunning() {
+    if (this.game === undefined) {
+      let [gameId, gameName, playerId, gameStateEnc] = await Promise.all([
+        this.state.storage.get('gameId'),
+        this.state.storage.get('gameName'),
+        this.state.storage.get('playerId'),
+        this.state.storage.get('state'),
+      ]);
+      let gameState = gameStateEnc !== undefined ? JSON.parse(gameStateEnc) : gameStateEnc;
+
+      if (gameId === undefined || gameName === undefined || playerId === undefined || gameState === undefined) {
+        // This could be from a phoney game id or from a
+        // a game whose state has outlived its ttl.
+        let error = new NotFound('Game not found');
+        this.log('Error', error.toJson());
+        return error;
+      }
+
+      await this.initialize(playerId, gameId, gameName, gameState);
+    }
   }
 
   async handlePlayerMessage(playerId, event) {
@@ -197,7 +279,7 @@ export class Plank {
     this.game.ports.receiveAction.send([playerId, action]);
   }
 
-  async upgrade(playerId, request) {
+  async connect(auth, request) {
     let upgradeHeader = request.headers.get("Upgrade")
     if (upgradeHeader !== "websocket") {
       return new Response("Expected websocket", { status: 400 })
@@ -206,26 +288,38 @@ export class Plank {
     let webSocketPair = new WebSocketPair();
     let [client, server] = Object.values(webSocketPair);
 
-    // TODO: Maybe group these calls?
-    this.game.ports.giveState.subscribe((state) => {
-      this.log(playerId, "New Game State: ", state);
-      server.send(JSON.stringify({state}));
-    })
-
     server.accept();
-    server.addEventListener('message', event => {
-      this.log(playerId, "Player Message: ", event.data);
-      this.handlePlayerMessage(playerId, event);
-    });
 
-    server.send(JSON.stringify({
-      connected: {
-        gameName: this.gameName,
-        gameId: this.gameId,
-        gameState: this.gameState,
-        playerId
+    if (auth === null) {
+      server.send(JSON.stringify(new Forbidden().toJson()));
+    } else {
+      let { playerId } = auth;
+
+      let ensureResErr = await this.ensureGameRunning();
+      if (ensureResErr !== undefined) {
+        server.send(JSON.stringify(ensureResErr.toJson()));
+      } else {
+        // TODO: Maybe group these calls?
+        this.game.ports.giveState.subscribe((state) => {
+          this.log(playerId, "New Game State: ", state);
+          server.send(JSON.stringify({state}));
+        })
+
+        server.addEventListener('message', event => {
+          this.log(playerId, "Player Message: ", event.data);
+          this.handlePlayerMessage(playerId, event);
+        });
+
+        server.send(JSON.stringify({
+          connected: {
+            gameName: this.gameName,
+            gameId: this.gameId,
+            gameState: this.gameState,
+            playerId
+          }
+        }));
       }
-    }));
+    }
 
     return new Response(null, {
       status: 101,
@@ -265,20 +359,28 @@ export class Plank {
       return this.handleOptions(request);
     }
 
-    let authRes = await this.auth(request);
-    if ('response' in authRes) {
-      return authRes.response;
-    }
-    let { playerId } = authRes;
+    try {
+      let auth = await this.auth(request);
 
-    let url = new URL(request.url);
-    let pathnames = url.pathname.split('/').filter((x) => x !== '');
-    let prefix = pathnames.shift();
-    if (prefix === 'initialize') {
-      let [gameName, gameId] = pathnames;
-      return this.initialize(playerId, gameId, gameName);
-    } else {
-      return this.upgrade(playerId, request);
+      let url = new URL(request.url);
+      let pathnames = url.pathname.split('/').filter((x) => x !== '');
+      let prefix = pathnames.shift();
+      if (prefix === 'initialize') {
+        if (auth === null) {
+          throw new Forbidden();
+        }
+
+        let [gameName, gameId] = pathnames;
+        return this.initialize(auth.playerId, gameId, gameName);
+      } else {
+        return this.connect(auth, request);
+      }
+    } catch (e) {
+      if (e instanceof ServerError) {
+        return e.toResponse();
+      } else {
+        throw e;
+      }
     }
   }
 }

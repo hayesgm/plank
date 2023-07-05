@@ -1,4 +1,4 @@
-port module Action exposing (gameConnected, giveState, joinGame, loadCss, newGame, newGameResp, receiveAction, receiveState, sendAction)
+port module Action exposing (..)
 
 import Json.Encode exposing (Value)
 
@@ -28,3 +28,6 @@ port newGameResp : (Value -> msg) -> Sub msg
 
 
 port loadCss : String -> Cmd msg
+
+
+port disconnect : () -> Cmd msg

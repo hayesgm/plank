@@ -10,18 +10,29 @@ function getSession() {
   }
 }
 
+// TODO: Improve session invalidation flow, maybe after we have full
+//       user accounts.
+function invalidateSession(maybeGameName) {
+  sessionStorage.removeItem('session');
+  app.ports.sessionInvalid.send(maybeGameName);
+}
+
 const assetMapping =  import.meta.glob("./src/Game/*/assets/*.(jpg|JPG|png|PNG|svg|css)", { as: "url", eager: true });
 const ssl = import.meta.env.VITE_PLANK_SSL === 'true' ?? false;
 const host = import.meta.env.VITE_PLANK_HOST ?? 'localhost:2233';
 const session = getSession();
 
-console.log({session});
+console.log("session", session);
 const app = Elm.Main.init({
   flags: {
     assetMapping,
     session
   },
   node: document.getElementById('root'),
+});
+
+app.ports.log.subscribe((msg) => {
+  console.log("[Plank][Log] " + msg);
 });
 
 let websocket;
@@ -43,7 +54,8 @@ app.ports.joinGame.subscribe(([nonce, gameId]) => {
 
     // TODO: It might be nice to work on looking into the
     //       error a bit more.
-    app.ports.sessionInvalid.send(null);
+    invalidateSession(null)
+
   })
 
   websocket.addEventListener('message', (event) => {
@@ -58,6 +70,12 @@ app.ports.joinGame.subscribe(([nonce, gameId]) => {
     } else if ('action' in data) {
       console.log("Received player action", data.action);
       app.ports.receiveAction.send(data.action);
+    } else if ('error' in data) {
+      let { error } = data;
+      console.error("Server error", error);
+      if (error.status === 403) {
+        invalidateSession(null);
+      }
     } else {
       console.log('Ignoring unknown server message', event.data);
     }
@@ -68,6 +86,14 @@ app.ports.sendAction.subscribe((action) => {
   console.log("Send action", action, websocket);
   if (websocket) {
     websocket.send(JSON.stringify(action));
+  }
+});
+
+app.ports.disconnect.subscribe(() => {
+  console.log("Disconnecting from websocket");
+  if (websocket) {
+    websocket.close();
+    websocket = undefined;
   }
 });
 
@@ -92,6 +118,6 @@ app.ports.newGame.subscribe(async ([nonce, gameName]) => {
     let json = await resp.json();
     app.ports.newGameResp.send(json);
   } else if (resp.status === 403) {
-    app.ports.sessionInvalid.send(gameName);
+    invalidateSession(gameName);
   }
 });

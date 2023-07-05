@@ -23,13 +23,25 @@ The server runs via Wrangler from CloudFlare. First, [install wrangler](https://
 npm install -g wrangler
 ```
 
-Next, build the Elm code and run wrangler.
+Next, build the Elm code and run wrangler. You can do this without code reloading via:
 
 ```sh
 npm run dev:server
 ```
 
 You should have a server running on [http://127.0.0.1:2233](http://127.0.0.1:2233).
+
+You can also do this with code reloading by running both:
+
+```sh
+npm run dev:server:watch
+```
+
+and
+
+```sh
+npm run dev:server:start
+```
 
 This will automatically reload whenever your JavaScript or Elm code changes. Note: your code reload my break any running game connections.
 
