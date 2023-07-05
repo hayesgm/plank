@@ -121,3 +121,64 @@ app.ports.newGame.subscribe(async ([nonce, gameName]) => {
     invalidateSession(gameName);
   }
 });
+
+app.ports.authRegister.subscribe(async (username) => {
+  console.log("Register as user", username);
+  let resp = await fetch(`http${ssl ? 's' : ''}://${host}/login/register`, {
+    method: 'POST',
+    body: JSON.stringify({username}),
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+  let json = await resp.json();
+
+  let challenge = json.challenge;
+
+  // This should be a challenge, which we should complete
+  let credential = await navigator.credentials.create({
+    publicKey: {
+      challenge: challenge,
+      rp: { name: "Plank Server" },
+      user: { // TODO: Track information about the user id locally?
+        name: username
+      },
+      pubKeyCredParams: [ {type: "public-key", alg: -7} ]
+    }
+  });
+  console.log(credential);
+  
+  // TODO: Complete the registration process
+
+  // sessionStorage.setItem('session', JSON.stringify(json));
+  // app.ports.sessionReceive.send(json);
+});
+
+app.ports.authLogin.subscribe(async (username) => {
+  // TODO: Show error if not supported
+  // let challenge0 = new Uint8Array([139, 66, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 203, 181, 87, 7, 203, 203, 181, 87, 7, 203, 203, 181, 87, 7, 203, 203, 181, 87, 7, 203, 203, 181, 87, 7, 203]);
+
+  // let credential0 = await navigator.credentials.create({
+  //   publicKey: {
+  //     challenge: challenge0,
+  //     rp: { id: "localhost", name: "Plank Server" },
+  //     user: {
+  //       id: new Uint8Array([79, 252, 83, 72, 214, 7, 89, 26]),
+  //       name: "jamiedoe",
+  //       displayName: "Jamie Doe"
+  //     },
+  //     pubKeyCredParams: [ {type: "public-key", alg: -7} ]
+  //   }
+  // });
+  // console.log(credential0);
+
+  let challenge1 = new Uint8Array([140, 66, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 181, 87, 7, 203, 203, 181, 87, 7, 203, 203, 181, 87, 7, 203, 203, 181, 87, 7, 203, 203, 181, 87, 7, 203, 203, 181, 87, 7, 203]);
+
+  let credential1 = await navigator.credentials.get({
+    publicKey: {
+      challenge: challenge1,
+      rp: { id: "localhost", name: "Plank Server" }
+    }
+  });
+  console.log(credential1);
+});

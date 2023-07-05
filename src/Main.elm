@@ -1,6 +1,7 @@
 module Main exposing (Model, Msg(..), init, main, subscriptions, update, view)
 
 import Action
+import Auth
 import Browser
 import Browser.Navigation as Nav
 import Console exposing (log)
@@ -32,6 +33,9 @@ type Msg
     | UrlChanged Url
     | SetSession (Result Decode.Error Session)
     | ReLogin (Maybe String)
+    | SetLoginUsername String
+    | AuthLogin
+    | AuthRegister
 
 
 main : Program Value Model Msg
@@ -53,6 +57,7 @@ type alias Model =
     , session : Maybe Session
     , key : Nav.Key
     , route : Routes.Route
+    , loginUsername : String
     }
 
 
@@ -84,6 +89,7 @@ init flags url key =
       , session = session
       , key = key
       , route = route
+      , loginUsername = ""
       }
     , case ( session, route ) of
         ( Just { nonce }, Routes.Game gameId ) ->
@@ -125,6 +131,11 @@ viewHome model =
             , div []
                 [ input [ placeholder "game_...", value model.inputGameId, onInput SetInputGameId ] []
                 , button [ onClick (JoinGame model.inputGameId) ] [ text "Join Game" ]
+                ]
+            , div []
+                [ input [ placeholder "Username", value model.loginUsername, onInput SetLoginUsername ] []
+                , button [ onClick AuthRegister ] [ text "Register" ]
+                , button [ onClick AuthLogin ] [ text "Login" ]
                 ]
             ]
         ]
@@ -295,6 +306,15 @@ update msg model =
             -- TODO: Try to connect game again
             -- TODO: Careful, since this can loop for so many reasons
             ( { model | session = Nothing }, Cmd.none )
+
+        SetLoginUsername s ->
+            ( { model | loginUsername = s }, Cmd.none )
+
+        AuthLogin ->
+            ( model, Auth.authLogin model.loginUsername )
+
+        AuthRegister ->
+            ( model, Auth.authRegister model.loginUsername )
 
 
 subscriptions : Model -> Sub Msg
